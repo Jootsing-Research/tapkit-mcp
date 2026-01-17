@@ -12,6 +12,7 @@ export async function GET(): Promise<Response> {
     issuer: MCP_SERVER_URL,
     authorization_endpoint: `${MCP_SERVER_URL}/oauth/authorize`,
     token_endpoint: `${MCP_SERVER_URL}/oauth/token`,
+    registration_endpoint: `${MCP_SERVER_URL}/oauth/register`,
     scopes_supported: ['phone:read', 'phone:control'],
     response_types_supported: ['code'],
     response_modes_supported: ['query'],

@@ -12,6 +12,7 @@
     { "source": "/.well-known/oauth-authorization-server", "destination": "/api/oauth/well-known" },
     { "source": "/oauth/authorize", "destination": "/api/oauth/authorize" },
     { "source": "/oauth/callback", "destination": "/api/oauth/callback" },
-    { "source": "/oauth/token", "destination": "/api/oauth/token" }
+    { "source": "/oauth/token", "destination": "/api/oauth/token" },
+    { "source": "/oauth/register", "destination": "/api/oauth/register" }
   ]
 }
