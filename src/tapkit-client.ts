@@ -59,20 +59,20 @@ export class TapKitClient {
     }
 
     if (!response.ok) {
-      let errorData: { error?: string; message?: string };
+      let errorCode = 'UNKNOWN_ERROR';
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
       try {
-        errorData = await response.json();
+        const responseBody = await response.json();
+        // Handle jootsing-server's {"detail": {"error": "...", "message": "..."}} format
+        const errorData = responseBody.detail || responseBody;
+        if (errorData.error) errorCode = errorData.error;
+        if (errorData.message) errorMessage = errorData.message;
       } catch {
-        errorData = {
-          error: 'UNKNOWN_ERROR',
-          message: `HTTP ${response.status}: ${response.statusText}`
-        };
+        // Response wasn't JSON, use defaults
       }
-      throw new TapKitAPIError(
-        response.status,
-        errorData.error || 'UNKNOWN_ERROR',
-        errorData.message || `HTTP ${response.status}: ${response.statusText}`
-      );
+
+      throw new TapKitAPIError(response.status, errorCode, errorMessage);
     }
 
     // Handle screenshot endpoint which returns binary
@@ -314,7 +314,8 @@ export class TapKitAPIError extends Error {
       case 'TIMEOUT':
         return 'Operation timed out. The app may be unresponsive.';
       case 'INVALID_API_KEY':
-        return 'Invalid API key. Please check your TapKit credentials.';
+      case 'INVALID_TOKEN':
+        return 'Invalid API key or token. Please reconnect to TapKit.';
       case 'AUTH_REQUIRED':
         return 'Authentication required. Please sign in to TapKit.';
       case 'SUBSCRIPTION_REQUIRED':
@@ -322,7 +323,9 @@ export class TapKitAPIError extends Error {
       case 'NETWORK_ERROR':
         return `Network error: ${this.message}`;
       case 'USER_NOT_FOUND':
-        return 'User not found. Please ensure you have a TapKit account.';
+        return 'User not found. Please ensure you have a TapKit account and have connected at least once via the app.';
+      case 'ORG_NOT_FOUND':
+        return 'Organization not found. Please ensure your account is set up correctly.';
       default:
         return `${this.code}: ${this.message}`;
     }
