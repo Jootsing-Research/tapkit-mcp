@@ -85,6 +85,13 @@ export class TapKitClient {
   }
 
   /**
+   * Set the phone ID to use for all operations
+   */
+  setPhoneId(phoneId: string): void {
+    this.phoneId = phoneId;
+  }
+
+  /**
    * Get the current phone ID, auto-selecting if not set
    */
   async getPhoneId(): Promise<string> {
@@ -101,8 +108,12 @@ export class TapKitClient {
       );
     }
 
-    this.phoneId = phones[0].id;
-    return this.phoneId;
+    // Don't auto-select - require explicit selection
+    throw new TapKitAPIError(
+      400,
+      'NO_PHONE_SELECTED',
+      `No phone selected. Use select_phone to choose one of: ${phones.map(p => p.name).join(', ')}`
+    );
   }
 
   /**
@@ -307,6 +318,8 @@ export class TapKitAPIError extends Error {
     switch (this.code) {
       case 'NO_PHONES_CONNECTED':
         return 'No phones connected. Please ensure TapKit is running and a phone is connected.';
+      case 'NO_PHONE_SELECTED':
+        return this.message;
       case 'PHONE_NOT_FOUND':
         return 'Phone not found. The device may have been disconnected.';
       case 'MAC_APP_NOT_RUNNING':

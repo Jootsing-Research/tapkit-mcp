@@ -16,6 +16,20 @@ export const toolDefinitions = [
     }
   },
   {
+    name: 'select_phone',
+    description: 'Select which phone to control by its ID. Use list_phones first to see available phones and their IDs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'The ID of the phone to select'
+        }
+      },
+      required: ['phone_id']
+    }
+  },
+  {
     name: 'screenshot',
     description: 'Take a screenshot of the iPhone screen. Returns the current screen state as an image. Use this to see what is on screen before and after actions.',
     inputSchema: {
@@ -287,6 +301,21 @@ export async function executeTool(
         const phoneList = phones.map(p => `- ${p.name} (ID: ${p.id})`).join('\n');
         return {
           content: [{ type: 'text', text: `Found ${phones.length} phone(s):\n${phoneList}` }]
+        };
+      }
+
+      case 'select_phone': {
+        const { phone_id } = args as { phone_id: string };
+        const phones = await client.listPhones();
+        const phone = phones.find(p => p.id === phone_id);
+        if (!phone) {
+          return {
+            content: [{ type: 'text', text: `Phone not found with ID: ${phone_id}` }]
+          };
+        }
+        client.setPhoneId(phone_id);
+        return {
+          content: [{ type: 'text', text: `Selected phone: ${phone.name}` }]
         };
       }
 
