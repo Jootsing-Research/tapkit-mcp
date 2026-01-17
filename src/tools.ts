@@ -7,6 +7,15 @@ import { TapKitClient, TapKitAPIError } from './tapkit-client.js';
 // Tool input schemas (JSON Schema format)
 export const toolDefinitions = [
   {
+    name: 'list_phones',
+    description: 'List all connected phones. Use this to see which devices are available.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
     name: 'screenshot',
     description: 'Take a screenshot of the iPhone screen. Returns the current screen state as an image. Use this to see what is on screen before and after actions.',
     inputSchema: {
@@ -268,6 +277,19 @@ export async function executeTool(
 ): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> }> {
   try {
     switch (toolName) {
+      case 'list_phones': {
+        const phones = await client.listPhones();
+        if (phones.length === 0) {
+          return {
+            content: [{ type: 'text', text: 'No phones found. Make sure TapKit is set up and a phone is connected.' }]
+          };
+        }
+        const phoneList = phones.map(p => `- ${p.name} (ID: ${p.id})`).join('\n');
+        return {
+          content: [{ type: 'text', text: `Found ${phones.length} phone(s):\n${phoneList}` }]
+        };
+      }
+
       case 'screenshot': {
         const imageBuffer = await client.screenshot();
         // Return as base64 image
