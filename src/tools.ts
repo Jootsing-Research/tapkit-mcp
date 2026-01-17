@@ -457,6 +457,13 @@ export async function executeTool(
         content: [{ type: 'text', text: `Error: ${error.toUserMessage()}` }]
       };
     }
-    throw error;
+    // Log and return non-TapKit errors with full details
+    console.error('Tool execution error:', error);
+    const errorMessage = error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : String(error);
+    return {
+      content: [{ type: 'text', text: `Error: ${errorMessage}` }]
+    };
   }
 }

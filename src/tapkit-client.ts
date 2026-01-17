@@ -42,18 +42,37 @@ export class TapKitClient {
       'Content-Type': 'application/json',
     };
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (fetchError) {
+      // Network error or fetch failed
+      throw new TapKitAPIError(
+        0,
+        'NETWORK_ERROR',
+        fetchError instanceof Error ? fetchError.message : 'Network request failed'
+      );
+    }
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({
-        error: 'UNKNOWN_ERROR',
-        message: response.statusText
-      }));
-      throw new TapKitAPIError(response.status, error.error, error.message);
+      let errorData: { error?: string; message?: string };
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = {
+          error: 'UNKNOWN_ERROR',
+          message: `HTTP ${response.status}: ${response.statusText}`
+        };
+      }
+      throw new TapKitAPIError(
+        response.status,
+        errorData.error || 'UNKNOWN_ERROR',
+        errorData.message || `HTTP ${response.status}: ${response.statusText}`
+      );
     }
 
     // Handle screenshot endpoint which returns binary
@@ -300,8 +319,12 @@ export class TapKitAPIError extends Error {
         return 'Authentication required. Please sign in to TapKit.';
       case 'SUBSCRIPTION_REQUIRED':
         return 'An active TapKit subscription is required.';
+      case 'NETWORK_ERROR':
+        return `Network error: ${this.message}`;
+      case 'USER_NOT_FOUND':
+        return 'User not found. Please ensure you have a TapKit account.';
       default:
-        return this.message;
+        return `${this.code}: ${this.message}`;
     }
   }
 }
