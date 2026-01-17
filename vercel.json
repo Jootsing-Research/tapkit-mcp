@@ -1,0 +1,15 @@
+{
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    { "source": "/mcp", "destination": "/api/mcp" },
+    { "source": "/mcp/:path*", "destination": "/api/mcp" },
+    { "source": "/.well-known/oauth-authorization-server", "destination": "/api/oauth/well-known" },
+    { "source": "/oauth/authorize", "destination": "/api/oauth/authorize" },
+    { "source": "/oauth/callback", "destination": "/api/oauth/callback" },
+    { "source": "/oauth/token", "destination": "/api/oauth/token" }
+  ]
+}
