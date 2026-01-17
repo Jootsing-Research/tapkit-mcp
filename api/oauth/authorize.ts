@@ -48,10 +48,14 @@ export async function GET(request: Request): Promise<Response> {
 
   // Build Supabase OAuth URL
   // Using the auth/authorize endpoint which will redirect to Google
+  // IMPORTANT: Pass our state via redirect_to URL, not Supabase's state param
+  // Supabase uses its own state for CSRF protection
+  const callbackUrl = new URL(`${MCP_SERVER_URL}/oauth/callback`);
+  callbackUrl.searchParams.set('mcp_state', encodedState);
+
   const supabaseAuthUrl = new URL(`${SUPABASE_URL}/auth/v1/authorize`);
   supabaseAuthUrl.searchParams.set('provider', 'google');
-  supabaseAuthUrl.searchParams.set('redirect_to', `${MCP_SERVER_URL}/oauth/callback`);
-  supabaseAuthUrl.searchParams.set('state', encodedState);
+  supabaseAuthUrl.searchParams.set('redirect_to', callbackUrl.toString());
 
   // Redirect to Supabase OAuth
   return Response.redirect(supabaseAuthUrl.toString(), 302);

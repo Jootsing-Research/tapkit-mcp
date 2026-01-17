@@ -19,7 +19,8 @@ export async function GET(request: Request): Promise<Response> {
   const refreshToken = url.searchParams.get('refresh_token');
   const error = url.searchParams.get('error');
   const errorDescription = url.searchParams.get('error_description');
-  const stateParam = url.searchParams.get('state');
+  // Our state is passed via mcp_state (not Supabase's state param)
+  const stateParam = url.searchParams.get('mcp_state');
 
   // Handle Supabase error
   if (error) {
@@ -155,6 +156,11 @@ export async function GET(request: Request): Promise<Response> {
               url.searchParams.set('access_token', accessToken);
               if (refreshToken) {
                 url.searchParams.set('refresh_token', refreshToken);
+              }
+              // Preserve mcp_state from original URL
+              const mcpState = new URL(window.location.href).searchParams.get('mcp_state');
+              if (mcpState) {
+                url.searchParams.set('mcp_state', mcpState);
               }
               window.location.href = url.toString();
             } else {
