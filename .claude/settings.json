@@ -1,0 +1,5 @@
+{
+    "env": {
+        "ANTHROPIC_CUSTOM_HEADERS": "computer-use-2025-11-24"
+    }
+}
