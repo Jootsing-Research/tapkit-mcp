@@ -57,20 +57,6 @@ export const toolDefinitions = [
     }
   },
   {
-    name: 'tap_element',
-    description: 'Tap an element by describing it in natural language. The system will find and tap the element matching your description. More reliable than coordinate-based tapping.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        description: {
-          type: 'string',
-          description: 'Natural language description of the element to tap (e.g., "Settings icon", "Login button", "Email text field")'
-        }
-      },
-      required: ['description']
-    }
-  },
-  {
     name: 'type_text',
     description: 'Type text into the currently focused text field. Make sure a text field is active first (tap it if needed).',
     inputSchema: {
@@ -91,20 +77,6 @@ export const toolDefinitions = [
       type: 'object',
       properties: {},
       required: []
-    }
-  },
-  {
-    name: 'open_app',
-    description: 'Open an app by its name. Works with common app names like "Settings", "Safari", "Messages", etc.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        app_name: {
-          type: 'string',
-          description: 'Name of the app to open (e.g., "Settings", "Safari", "Messages")'
-        }
-      },
-      required: ['app_name']
     }
   },
   {
@@ -265,20 +237,6 @@ export const toolDefinitions = [
       required: ['shortcut_name']
     }
   },
-  {
-    name: 'open_url',
-    description: 'Open a URL on the device. Will open in the default browser or appropriate app.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        url: {
-          type: 'string',
-          description: 'URL to open'
-        }
-      },
-      required: ['url']
-    }
-  }
 ];
 
 /**
@@ -342,14 +300,6 @@ export async function executeTool(
         };
       }
 
-      case 'tap_element': {
-        const { description } = args as { description: string };
-        await client.tapElement(description);
-        return {
-          content: [{ type: 'text', text: `Tapped element: "${description}"` }]
-        };
-      }
-
       case 'type_text': {
         const { text } = args as { text: string };
         await client.typeText(text);
@@ -362,14 +312,6 @@ export async function executeTool(
         await client.pressHome();
         return {
           content: [{ type: 'text', text: 'Pressed home button' }]
-        };
-      }
-
-      case 'open_app': {
-        const { app_name } = args as { app_name: string };
-        await client.openApp(app_name);
-        return {
-          content: [{ type: 'text', text: `Opened app: ${app_name}` }]
         };
       }
 
@@ -486,14 +428,6 @@ export async function executeTool(
         await client.runShortcut(shortcut_name);
         return {
           content: [{ type: 'text', text: `Ran shortcut: ${shortcut_name}` }]
-        };
-      }
-
-      case 'open_url': {
-        const { url } = args as { url: string };
-        await client.openUrl(url);
-        return {
-          content: [{ type: 'text', text: `Opened URL: ${url}` }]
         };
       }
 
