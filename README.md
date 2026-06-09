@@ -59,7 +59,6 @@ All tools require a `phone_id` parameter. Call `list_phones` first to discover a
 | `list_phones` | List all phones with connection status, IDs, and dimensions |
 | `select_phone` | Physically activate a phone on its connected Mac |
 | `get_phone_status` | Get real-time status (connection, Switch Control, screen lock, streaming) |
-| `enable_switch_control` | Enable Switch Control on the Mac for a given phone |
 | `screenshot` | Take a screenshot (returned as JPEG, max 1344px long edge) |
 
 ### Touch & Gestures
