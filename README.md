@@ -57,7 +57,6 @@ All tools require a `phone_id` parameter. Call `list_phones` first to discover a
 | Tool | Description |
 |------|-------------|
 | `list_phones` | List all phones with connection status, IDs, and dimensions |
-| `select_phone` | Physically activate a phone on its connected Mac |
 | `get_phone_status` | Get real-time status (connection, Switch Control, screen lock, streaming) |
 | `screenshot` | Take a screenshot (returned as JPEG, max 1344px long edge) |
 
@@ -105,7 +104,7 @@ The official plugin repos bundle these skills automatically. If you're using a s
 ## How It Works
 
 - **Coordinate scaling** -- Screenshots are resized to a max 1344px long edge (JPEG @ 80%) for efficient transmission. Tap coordinates are automatically translated back to native screen space.
-- **Auto phone selection** -- If you have one phone, it's auto-selected. Multiple phones require explicit `select_phone` or passing `phone_id`.
+- **Auto phone selection** -- If you have one phone, it's auto-selected. Multiple phones require passing `phone_id`.
 - **Serverless-friendly** -- Deployed on Vercel with session recovery on cold starts. OAuth 2.0 with PKCE for secure authentication.
 
 ## Development

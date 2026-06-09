@@ -17,20 +17,6 @@ export const toolDefinitions = [
     }
   },
   {
-    name: 'select_phone',
-    description: 'Physically activate a phone on its connected Mac (switches Switch Control to it). Optional — actions on an inactive phone will auto-activate it. Use this only if you want to eagerly switch before a long sequence of actions.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'The ID of the phone to select'
-        }
-      },
-      required: ['phone_id']
-    }
-  },
-  {
     name: 'screenshot',
     description: 'Take a screenshot of the iPhone screen. Returns the current screen state as an image. Use this to see what is on screen before and after actions.',
     inputSchema: {
@@ -493,19 +479,6 @@ async function executeToolInner(
       }).join('\n');
       return {
         content: [{ type: 'text', text: `Found ${phones.length} phone(s):\n${phoneList}` }]
-      };
-    }
-
-    case 'select_phone': {
-      const phoneId = args.phone_id as string;
-      const phone = await client.selectPhoneOnMac(phoneId);
-      if (phone.width && phone.height) {
-        client.cacheScaling(phoneId, phone.width, phone.height);
-      }
-      const scaling = client.getScaling(phoneId);
-      const dims = scaling ? ` (${scaling.scaledWidth}x${scaling.scaledHeight})` : '';
-      return {
-        content: [{ type: 'text', text: `Selected and activated phone: ${phone.display_name || phone.name}${dims}` }]
       };
     }
 

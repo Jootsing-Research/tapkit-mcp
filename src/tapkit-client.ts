@@ -465,7 +465,7 @@ export class TapKitAPIError extends Error {
       case 'NO_PHONE_SELECTED':
         return this.message;
       case 'PHONE_NOT_SELECTED':
-        return 'Phone is connected but not active. Use select_phone to switch to it.';
+        return 'Phone is connected but not active. Pass a valid phone_id and try the action again.';
       case 'PHONE_NOT_CONNECTED':
         return 'Phone is not connected to any Mac. Check that the device is online and TapKit is running.';
       case 'PHONE_NOT_FOUND':
