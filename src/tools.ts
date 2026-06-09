@@ -399,20 +399,6 @@ export const toolDefinitions = [
     }
   },
   {
-    name: 'enable_switch_control',
-    description: 'Enable Switch Control on the Mac for a given phone. This must be done before the phone can be controlled via Switch Control.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        }
-      },
-      required: ['phone_id']
-    }
-  },
-  {
     name: 'copy_text_to_phone',
     description: 'Load text into a phone\'s clipboard. After this completes, the text is on the phone\'s clipboard and can be pasted anywhere.',
     inputSchema: {
@@ -725,14 +711,6 @@ async function executeToolInner(
       await client.escape(phoneId);
       return {
         content: [{ type: 'text', text: 'Pressed escape' }]
-      };
-    }
-
-    case 'enable_switch_control': {
-      const phoneId = args.phone_id as string;
-      await client.enableSwitchControl(phoneId);
-      return {
-        content: [{ type: 'text', text: 'Enabled Switch Control' }]
       };
     }
 
