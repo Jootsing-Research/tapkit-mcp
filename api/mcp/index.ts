@@ -25,7 +25,7 @@ function createMCPServer(authToken: string): Server {
   const server = new Server(
     {
       name: 'tapkit',
-      version: '1.1.0',
+      version: '1.3.0',
     },
     {
       capabilities: {
@@ -169,7 +169,7 @@ export async function POST(request: Request): Promise<Response> {
             capabilities: {},
             clientInfo: {
               name: 'reconnected-client',
-              version: '1.0.0',
+              version: '1.3.0',
             },
           },
           id: 'synthetic-init',
