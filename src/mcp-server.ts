@@ -15,7 +15,7 @@ export function createMCPServer(authToken: string): Server {
   const server = new Server(
     {
       name: 'tapkit',
-      version: '1.1.0',
+      version: '1.3.0',
     },
     {
       capabilities: {
@@ -52,7 +52,7 @@ export function createMCPServer(authToken: string): Server {
  */
 export const serverInfo = {
   name: 'tapkit',
-  version: '1.1.0',
+  version: '1.3.0',
   description: 'Control iOS devices through TapKit',
   vendor: 'TapKit',
   homepage: 'https://tapkit.ai',

@@ -148,37 +148,37 @@ export const toolDefinitions = [
       required: ['phone_id', 'from_x', 'from_y', 'to_x', 'to_y']
     }
   },
-  {
-    name: 'pinch',
-    description: 'Perform a pinch or rotate gesture centered at specific coordinates. Useful for zooming or rotating content.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        },
-        x: {
-          type: 'number',
-          description: 'Center X coordinate'
-        },
-        y: {
-          type: 'number',
-          description: 'Center Y coordinate'
-        },
-        action: {
-          type: 'string',
-          enum: ['pinch_in', 'pinch_out', 'rotate_cw', 'rotate_ccw'],
-          description: 'Gesture to perform'
-        },
-        duration_ms: {
-          type: 'number',
-          description: 'Duration of the gesture in milliseconds (default: 1000)'
-        }
-      },
-      required: ['phone_id', 'x', 'y', 'action']
-    }
-  },
+  // {
+  //   name: 'pinch',
+  //   description: 'Perform a pinch or rotate gesture centered at specific coordinates. Useful for zooming or rotating content.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       },
+  //       x: {
+  //         type: 'number',
+  //         description: 'Center X coordinate'
+  //       },
+  //       y: {
+  //         type: 'number',
+  //         description: 'Center Y coordinate'
+  //       },
+  //       action: {
+  //         type: 'string',
+  //         enum: ['pinch_in', 'pinch_out', 'rotate_cw', 'rotate_ccw'],
+  //         description: 'Gesture to perform'
+  //       },
+  //       duration_ms: {
+  //         type: 'number',
+  //         description: 'Duration of the gesture in milliseconds (default: 1000)'
+  //       }
+  //     },
+  //     required: ['phone_id', 'x', 'y', 'action']
+  //   }
+  // },
   {
     name: 'double_tap',
     description: 'Double tap at specific coordinates. Useful for zooming or selecting text.',
@@ -255,170 +255,170 @@ export const toolDefinitions = [
       required: ['phone_id']
     }
   },
-  {
-    name: 'volume_up',
-    description: 'Increase the volume.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        }
-      },
-      required: ['phone_id']
-    }
-  },
-  {
-    name: 'volume_down',
-    description: 'Decrease the volume.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        }
-      },
-      required: ['phone_id']
-    }
-  },
-  {
-    name: 'spotlight',
-    description: 'Open Spotlight.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        }
-      },
-      required: ['phone_id']
-    }
-  },
-  {
-    name: 'activate_siri',
-    description: 'Activate Siri voice assistant.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        }
-      },
-      required: ['phone_id']
-    }
-  },
-  {
-    name: 'run_shortcut',
-    description: 'Run an iOS Shortcut by its index number in the shortcuts menu.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        },
-        index: {
-          type: 'number',
-          description: 'Index of the shortcut to run (0-based)'
-        }
-      },
-      required: ['phone_id', 'index']
-    }
-  },
-  {
-    name: 'escape',
-    description: 'Press escape to dismiss keyboards, alerts, popups, or modal screens.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        }
-      },
-      required: ['phone_id']
-    }
-  },
-  {
-    name: 'open_app',
-    description: 'Open an app by name or bundle ID. Examples: "Safari", "com.apple.mobilesafari".',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        },
-        app_name: {
-          type: 'string',
-          description: 'The app name (e.g. "Safari", "Settings") or bundle ID (e.g. "com.apple.mobilesafari")'
-        }
-      },
-      required: ['phone_id', 'app_name']
-    }
-  },
-  {
-    name: 'open_url',
-    description: 'Open a URL on the phone via the Shortcut action queue. Default consume_mode is pop; use ack when the Shortcut must explicitly acknowledge completion.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        },
-        url: {
-          type: 'string',
-          description: 'The absolute URL to open, for example "https://example.com/setup".'
-        },
-        consume_mode: {
-          type: 'string',
-          enum: ['pop', 'ack'],
-          description: 'How the Shortcut consumes the queued action. Defaults to pop.'
-        }
-      },
-      required: ['phone_id', 'url']
-    }
-  },
-  {
-    name: 'copy_text_to_phone',
-    description: 'Load text into a phone\'s clipboard. After this completes, the text is on the phone\'s clipboard and can be pasted anywhere.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        },
-        text: {
-          type: 'string',
-          description: 'The text to copy to the clipboard'
-        }
-      },
-      required: ['phone_id', 'text']
-    }
-  },
-  {
-    name: 'get_clipboard_text_from_phone',
-    description: 'Read the current text from a phone\'s clipboard.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        }
-      },
-      required: ['phone_id']
-    }
-  },
+  // {
+  //   name: 'volume_up',
+  //   description: 'Increase the volume.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       }
+  //     },
+  //     required: ['phone_id']
+  //   }
+  // },
+  // {
+  //   name: 'volume_down',
+  //   description: 'Decrease the volume.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       }
+  //     },
+  //     required: ['phone_id']
+  //   }
+  // },
+  // {
+  //   name: 'spotlight',
+  //   description: 'Open Spotlight.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       }
+  //     },
+  //     required: ['phone_id']
+  //   }
+  // },
+  // {
+  //   name: 'activate_siri',
+  //   description: 'Activate Siri voice assistant.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       }
+  //     },
+  //     required: ['phone_id']
+  //   }
+  // },
+  // {
+  //   name: 'run_shortcut',
+  //   description: 'Run an iOS Shortcut by its index number in the shortcuts menu.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       },
+  //       index: {
+  //         type: 'number',
+  //         description: 'Index of the shortcut to run (0-based)'
+  //       }
+  //     },
+  //     required: ['phone_id', 'index']
+  //   }
+  // },
+  // {
+  //   name: 'escape',
+  //   description: 'Press escape to dismiss keyboards, alerts, popups, or modal screens.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       }
+  //     },
+  //     required: ['phone_id']
+  //   }
+  // },
+  // {
+  //   name: 'open_app',
+  //   description: 'Open an app by name or bundle ID. Examples: "Safari", "com.apple.mobilesafari".',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       },
+  //       app_name: {
+  //         type: 'string',
+  //         description: 'The app name (e.g. "Safari", "Settings") or bundle ID (e.g. "com.apple.mobilesafari")'
+  //       }
+  //     },
+  //     required: ['phone_id', 'app_name']
+  //   }
+  // },
+  // {
+  //   name: 'open_url',
+  //   description: 'Open a URL on the phone via the Shortcut action queue. Default consume_mode is pop; use ack when the Shortcut must explicitly acknowledge completion.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       },
+  //       url: {
+  //         type: 'string',
+  //         description: 'The absolute URL to open, for example "https://example.com/setup".'
+  //       },
+  //       consume_mode: {
+  //         type: 'string',
+  //         enum: ['pop', 'ack'],
+  //         description: 'How the Shortcut consumes the queued action. Defaults to pop.'
+  //       }
+  //     },
+  //     required: ['phone_id', 'url']
+  //   }
+  // },
+  // {
+  //   name: 'copy_text_to_phone',
+  //   description: 'Load text into a phone\'s clipboard. After this completes, the text is on the phone\'s clipboard and can be pasted anywhere.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       },
+  //       text: {
+  //         type: 'string',
+  //         description: 'The text to copy to the clipboard'
+  //       }
+  //     },
+  //     required: ['phone_id', 'text']
+  //   }
+  // },
+  // {
+  //   name: 'get_clipboard_text_from_phone',
+  //   description: 'Read the current text from a phone\'s clipboard.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       }
+  //     },
+  //     required: ['phone_id']
+  //   }
+  // },
   {
     name: 'get_phone_status',
-    description: 'Get real-time status of a phone including connection state, Switch Control, screen lock, and streaming status.',
+    description: 'Get real-time status of a phone including connection state and screen dimensions.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -430,20 +430,20 @@ export const toolDefinitions = [
       required: ['phone_id']
     }
   },
-  {
-    name: 'get_phone_info',
-    description: '(Deprecated — use get_phone_status instead) Get screen dimensions and device info for a phone.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        phone_id: {
-          type: 'string',
-          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
-        }
-      },
-      required: ['phone_id']
-    }
-  },
+  // {
+  //   name: 'get_phone_info',
+  //   description: '(Deprecated — use get_phone_status instead) Get screen dimensions and device info for a phone.',
+  //   inputSchema: {
+  //     type: 'object',
+  //     properties: {
+  //       phone_id: {
+  //         type: 'string',
+  //         description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+  //       }
+  //     },
+  //     required: ['phone_id']
+  //   }
+  // },
 ];
 
 type ToolResult = { content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> };
@@ -590,18 +590,18 @@ async function executeToolInner(
       };
     }
 
-    case 'pinch': {
-      const { phone_id, x, y, action, duration_ms } = args as {
-        phone_id: string; x: number; y: number; action: PinchAction; duration_ms?: number;
-      };
-      await client.ensureScaling(phone_id);
-      const native = client.toNative(phone_id, x, y);
-      const result = await client.pinch(phone_id, native.x, native.y, action, duration_ms);
-      const id = result.id ? `, job: ${result.id}` : '';
-      return {
-        content: [{ type: 'text', text: `Performed ${action} at (${x}, ${y}) for ${duration_ms || 1000}ms (status: ${result.status}${id})` }]
-      };
-    }
+    // case 'pinch': {
+    //   const { phone_id, x, y, action, duration_ms } = args as {
+    //     phone_id: string; x: number; y: number; action: PinchAction; duration_ms?: number;
+    //   };
+    //   await client.ensureScaling(phone_id);
+    //   const native = client.toNative(phone_id, x, y);
+    //   const result = await client.pinch(phone_id, native.x, native.y, action, duration_ms);
+    //   const id = result.id ? `, job: ${result.id}` : '';
+    //   return {
+    //     content: [{ type: 'text', text: `Performed ${action} at (${x}, ${y}) for ${duration_ms || 1000}ms (status: ${result.status}${id})` }]
+    //   };
+    // }
 
     case 'double_tap': {
       const { phone_id, x, y } = args as { phone_id: string; x: number; y: number };
@@ -639,85 +639,85 @@ async function executeToolInner(
       };
     }
 
-    case 'volume_up': {
-      const phoneId = args.phone_id as string;
-      await client.volumeUp(phoneId);
-      return {
-        content: [{ type: 'text', text: 'Increased volume' }]
-      };
-    }
+    // case 'volume_up': {
+    //   const phoneId = args.phone_id as string;
+    //   await client.volumeUp(phoneId);
+    //   return {
+    //     content: [{ type: 'text', text: 'Increased volume' }]
+    //   };
+    // }
 
-    case 'volume_down': {
-      const phoneId = args.phone_id as string;
-      await client.volumeDown(phoneId);
-      return {
-        content: [{ type: 'text', text: 'Decreased volume' }]
-      };
-    }
+    // case 'volume_down': {
+    //   const phoneId = args.phone_id as string;
+    //   await client.volumeDown(phoneId);
+    //   return {
+    //     content: [{ type: 'text', text: 'Decreased volume' }]
+    //   };
+    // }
 
-    case 'spotlight': {
-      const phoneId = args.phone_id as string;
-      await client.spotlight(phoneId);
-      return {
-        content: [{ type: 'text', text: 'Opened Spotlight' }]
-      };
-    }
+    // case 'spotlight': {
+    //   const phoneId = args.phone_id as string;
+    //   await client.spotlight(phoneId);
+    //   return {
+    //     content: [{ type: 'text', text: 'Opened Spotlight' }]
+    //   };
+    // }
 
-    case 'activate_siri': {
-      const phoneId = args.phone_id as string;
-      await client.activateSiri(phoneId);
-      return {
-        content: [{ type: 'text', text: 'Activated Siri' }]
-      };
-    }
+    // case 'activate_siri': {
+    //   const phoneId = args.phone_id as string;
+    //   await client.activateSiri(phoneId);
+    //   return {
+    //     content: [{ type: 'text', text: 'Activated Siri' }]
+    //   };
+    // }
 
-    case 'run_shortcut': {
-      const { phone_id, index } = args as { phone_id: string; index: number };
-      await client.runShortcut(phone_id, index);
-      return {
-        content: [{ type: 'text', text: `Ran shortcut at index: ${index}` }]
-      };
-    }
+    // case 'run_shortcut': {
+    //   const { phone_id, index } = args as { phone_id: string; index: number };
+    //   await client.runShortcut(phone_id, index);
+    //   return {
+    //     content: [{ type: 'text', text: `Ran shortcut at index: ${index}` }]
+    //   };
+    // }
 
-    case 'escape': {
-      const phoneId = args.phone_id as string;
-      await client.escape(phoneId);
-      return {
-        content: [{ type: 'text', text: 'Pressed escape' }]
-      };
-    }
+    // case 'escape': {
+    //   const phoneId = args.phone_id as string;
+    //   await client.escape(phoneId);
+    //   return {
+    //     content: [{ type: 'text', text: 'Pressed escape' }]
+    //   };
+    // }
 
-    case 'copy_text_to_phone': {
-      const { phone_id, text } = args as { phone_id: string; text: string };
-      await client.copyText(phone_id, text);
-      return {
-        content: [{ type: 'text', text: `Copied text to phone clipboard` }]
-      };
-    }
+    // case 'copy_text_to_phone': {
+    //   const { phone_id, text } = args as { phone_id: string; text: string };
+    //   await client.copyText(phone_id, text);
+    //   return {
+    //     content: [{ type: 'text', text: `Copied text to phone clipboard` }]
+    //   };
+    // }
 
-    case 'get_clipboard_text_from_phone': {
-      const phoneId = args.phone_id as string;
-      const result = await client.readClipboardText(phoneId);
-      return {
-        content: [{ type: 'text', text: result.empty ? 'Phone clipboard is empty' : `Phone clipboard text:\n${result.text}` }]
-      };
-    }
+    // case 'get_clipboard_text_from_phone': {
+    //   const phoneId = args.phone_id as string;
+    //   const result = await client.readClipboardText(phoneId);
+    //   return {
+    //     content: [{ type: 'text', text: result.empty ? 'Phone clipboard is empty' : `Phone clipboard text:\n${result.text}` }]
+    //   };
+    // }
 
-    case 'open_app': {
-      const { phone_id, app_name } = args as { phone_id: string; app_name: string };
-      await client.openApp(phone_id, app_name);
-      return {
-        content: [{ type: 'text', text: `Opened app: ${app_name}` }]
-      };
-    }
+    // case 'open_app': {
+    //   const { phone_id, app_name } = args as { phone_id: string; app_name: string };
+    //   await client.openApp(phone_id, app_name);
+    //   return {
+    //     content: [{ type: 'text', text: `Opened app: ${app_name}` }]
+    //   };
+    // }
 
-    case 'open_url': {
-      const { phone_id, url, consume_mode } = args as { phone_id: string; url: string; consume_mode?: ConsumeMode };
-      const result = await client.openUrl(phone_id, url, consume_mode);
-      return {
-        content: [{ type: 'text', text: `Queued URL open action: ${url} (action_id: ${result.action_id})` }]
-      };
-    }
+    // case 'open_url': {
+    //   const { phone_id, url, consume_mode } = args as { phone_id: string; url: string; consume_mode?: ConsumeMode };
+    //   const result = await client.openUrl(phone_id, url, consume_mode);
+    //   return {
+    //     content: [{ type: 'text', text: `Queued URL open action: ${url} (action_id: ${result.action_id})` }]
+    //   };
+    // }
 
     case 'get_phone_status': {
       const phoneId = args.phone_id as string;
@@ -729,9 +729,6 @@ async function executeToolInner(
       const lines = [
         `Phone: ${status.phone_name}`,
         `Status: ${status.connection_status}`,
-        `Switch Control: ${status.switch_control_enabled ? 'enabled' : 'disabled'}`,
-        `Screen: ${status.screen_locked ? 'locked' : 'unlocked'}`,
-        `Streaming: ${status.streaming ? 'yes' : 'no'}`,
       ];
       if (status.width && status.height) {
         lines.push(`Dimensions: ${status.width}x${status.height}`);
@@ -741,16 +738,16 @@ async function executeToolInner(
       };
     }
 
-    case 'get_phone_info': {
-      const phoneId = args.phone_id as string;
-      const status = await client.getPhoneStatus(phoneId);
-      if (status.width && status.height) {
-        client.cacheScaling(phoneId, status.width, status.height);
-      }
-      return {
-        content: [{ type: 'text', text: `Screen: ${status.width}x${status.height}, Name: ${status.phone_name}` }]
-      };
-    }
+    // case 'get_phone_info': {
+    //   const phoneId = args.phone_id as string;
+    //   const status = await client.getPhoneStatus(phoneId);
+    //   if (status.width && status.height) {
+    //     client.cacheScaling(phoneId, status.width, status.height);
+    //   }
+    //   return {
+    //     content: [{ type: 'text', text: `Screen: ${status.width}x${status.height}, Name: ${status.phone_name}` }]
+    //   };
+    // }
 
     default:
       return {

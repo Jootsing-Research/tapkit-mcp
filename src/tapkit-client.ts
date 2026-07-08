@@ -28,20 +28,10 @@ export interface Phone {
   created_at: string;
 }
 
-/** @deprecated Use Phone.width/height from listPhones() instead */
-export interface PhoneInfo {
-  width: number;
-  height: number;
-  name: string;
-}
-
 export interface PhoneStatus {
   phone_id: string;
   phone_name: string;
   connection_status: 'online' | 'available' | 'offline';
-  switch_control_enabled: boolean;
-  screen_locked: boolean;
-  streaming: boolean;
   width: number | null;
   height: number | null;
 }
@@ -242,11 +232,6 @@ export class TapKitClient {
    */
   async getPhoneStatus(phoneId: string): Promise<PhoneStatus> {
     return this.request<PhoneStatus>('GET', `/phones/${phoneId}/status`);
-  }
-
-  /** @deprecated Use Phone.width/height from listPhones() instead */
-  async getPhoneInfo(phoneId: string): Promise<PhoneInfo> {
-    return this.request<PhoneInfo>('GET', `/phones/${phoneId}/info`);
   }
 
   /**
