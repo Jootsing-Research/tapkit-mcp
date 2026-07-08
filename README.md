@@ -57,7 +57,7 @@ All tools require a `phone_id` parameter. Call `list_phones` first to discover a
 | Tool | Description |
 |------|-------------|
 | `list_phones` | List all phones with connection status, IDs, and dimensions |
-| `get_phone_status` | Get real-time status (connection, Switch Control, screen lock, streaming) |
+| `get_phone_status` | Get real-time status (connection and dimensions) |
 | `screenshot` | Take a screenshot (returned as JPEG, max 1344px long edge) |
 
 ### Touch & Gestures
@@ -70,21 +70,12 @@ All tools require a `phone_id` parameter. Call `list_phones` first to discover a
 | `swipe` | Fast flick gesture in a direction (up/down/left/right) |
 | `drag` | Drag from one point to another -- for sliders, precise scrolling |
 | `hold_and_drag` | Long press then drag -- for reordering lists, drag-and-drop |
-| `pinch` | Pinch in/out or rotate at (x, y) |
 
 ### Navigation & Input
 
 | Tool | Description |
 |------|-------------|
 | `press_home` | Press the home button |
-| `open_app` | Open an app by name or bundle ID |
-| `open_url` | Open a URL via the Shortcut action queue |
-| `spotlight` | Open Spotlight search, optionally with a query |
-| `escape` | Dismiss keyboards, alerts, popups, or modal screens |
-| `copy_text_to_phone` | Load text into the phone's clipboard for pasting |
-| `get_clipboard_text_from_phone` | Read text from the phone's clipboard |
-| `activate_siri` | Activate Siri |
-| `run_shortcut` | Run an iOS Shortcut by index |
 
 ### Hardware
 
@@ -92,8 +83,6 @@ All tools require a `phone_id` parameter. Call `list_phones` first to discover a
 |------|-------------|
 | `lock` | Lock the screen |
 | `unlock` | Unlock the screen |
-| `volume_up` | Increase volume |
-| `volume_down` | Decrease volume |
 
 ## Skills
 
