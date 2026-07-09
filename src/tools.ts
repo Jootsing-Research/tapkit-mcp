@@ -54,7 +54,7 @@ export const toolDefinitions = [
   },
   {
     name: 'type_text',
-    description: 'Type text into the currently focused text field. Make sure a text field is active first (tap it if needed).',
+    description: 'Type text into the currently focused text field through the TapKit type API. Make sure a text field is active first (tap it if needed).',
     inputSchema: {
       type: 'object',
       properties: {

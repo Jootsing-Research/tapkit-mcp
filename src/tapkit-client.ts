@@ -319,7 +319,7 @@ export class TapKitClient {
    * Type text into active field
    */
   async typeText(phoneId: string, text: string): Promise<TapResult> {
-    return this.request<TapResult>('POST', `/phones/${phoneId}/type`, { text, method: 'shortcut' });
+    return this.request<TapResult>('POST', `/phones/${phoneId}/type`, { text });
   }
 
   /**
