@@ -76,6 +76,7 @@ All tools require a `phone_id` parameter. Call `list_phones` first to discover a
 | Tool | Description |
 |------|-------------|
 | `press_home` | Press the home button |
+| `type_text` | Type text into the active text field |
 
 ### Hardware
 

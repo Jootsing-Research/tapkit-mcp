@@ -52,24 +52,24 @@ export const toolDefinitions = [
       required: ['phone_id', 'x', 'y']
     }
   },
-  // {
-  //   name: 'type_text',
-  //   description: 'Type text into the currently focused text field. Make sure a text field is active first (tap it if needed).',
-  //   inputSchema: {
-  //     type: 'object',
-  //     properties: {
-  //       phone_id: {
-  //         type: 'string',
-  //         description: 'Phone ID (required when multiple phones are connected)'
-  //       },
-  //       text: {
-  //         type: 'string',
-  //         description: 'The text to type'
-  //       }
-  //     },
-  //     required: ['text']
-  //   }
-  // },
+  {
+    name: 'type_text',
+    description: 'Type text into the currently focused text field. Make sure a text field is active first (tap it if needed).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+        },
+        text: {
+          type: 'string',
+          description: 'The text to type'
+        }
+      },
+      required: ['phone_id', 'text']
+    }
+  },
   {
     name: 'press_home',
     description: 'Press the home button to go to the home screen or exit the current app.',
@@ -538,13 +538,13 @@ async function executeToolInner(
       };
     }
 
-    // case 'type_text': {
-    //   const { phone_id, text } = args as { phone_id: string; text: string };
-    //   await client.typeText(phone_id, text);
-    //   return {
-    //     content: [{ type: 'text', text: `Typed: "${text}"` }]
-    //   };
-    // }
+    case 'type_text': {
+      const { phone_id, text } = args as { phone_id: string; text: string };
+      await client.typeText(phone_id, text);
+      return {
+        content: [{ type: 'text', text: `Typed text into active field` }]
+      };
+    }
 
     case 'press_home': {
       const phoneId = args.phone_id as string;
