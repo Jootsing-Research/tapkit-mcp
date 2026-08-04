@@ -328,7 +328,7 @@ test('browser authorization is cookie-bound, explicitly consented, and redirects
   const cfg = config();
   const client = {
     client_id: 'browser-client',
-    redirect_uris: ['https://client.example/callback'],
+    redirect_uris: ['http://127.0.0.1:50669/callback/test'],
     client_name: 'Browser test client',
     client_uri: null,
     logo_uri: null,
@@ -418,7 +418,10 @@ test('browser authorization is cookie-bound, explicitly consented, and redirects
     { headers: { Cookie: `tapkit_oauth_tx=${transaction}` } }
   ), callbackStore, cfg, upstreamFetch);
   assert.equal(callbackResponse.status, 200);
-  assert.match(callbackResponse.headers.get('Content-Security-Policy') || '', /frame-ancestors 'none'/);
+  const callbackCsp = callbackResponse.headers.get('Content-Security-Policy') || '';
+  assert.match(callbackCsp, /frame-ancestors 'none'/);
+  assert.match(callbackCsp, /form-action 'self' http:\/\/127\.0\.0\.1:50669/);
+  assert.equal(callbackCsp.includes('/callback/test'), false);
   assert.match(callbackResponse.headers.get('Set-Cookie') || '', /Max-Age=0/);
   assert.equal(loginPatches.length, 1);
   assert.equal(

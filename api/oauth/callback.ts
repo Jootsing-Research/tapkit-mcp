@@ -62,7 +62,15 @@ function clearTransactionCookie(config: OAuthConfig): string {
   return `tapkit_oauth_tx=; Path=/oauth/callback; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
 }
 
-function htmlResponse(html: string, status: number, config: OAuthConfig): Response {
+function htmlResponse(
+  html: string,
+  status: number,
+  config: OAuthConfig,
+  formRedirectOrigin?: string
+): Response {
+  const formAction = formRedirectOrigin
+    ? `'self' ${formRedirectOrigin}`
+    : "'self'";
   return new Response(html, {
     status,
     headers: {
@@ -71,7 +79,7 @@ function htmlResponse(html: string, status: number, config: OAuthConfig): Respon
       Pragma: 'no-cache',
       'Referrer-Policy': 'no-referrer',
       'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+      'Content-Security-Policy': `default-src 'none'; form-action ${formAction}; base-uri 'none'; frame-ancestors 'none'`,
       'Set-Cookie': clearTransactionCookie(config),
     },
   });
@@ -85,10 +93,14 @@ function consentPage(
   transaction: string,
   consentToken: string,
   clientName: string,
-  redirectHost: string,
+  redirectUri: string,
   config: OAuthConfig
 ): Response {
-  return htmlResponse(`<!doctype html><html lang="en"><meta charset="utf-8"><title>Connect TapKit</title><body><main><h1>Connect ${escapeHtml(clientName)} to TapKit?</h1><p>Requested by ${escapeHtml(redirectHost)}.</p><p>This allows ${escapeHtml(clientName)} to view your connected iPhone screens and control those iPhones through TapKit.</p><p>This connection must not be used to make purchases, payments, or complete third-party checkout.</p><form method="post" action="/oauth/consent"><input type="hidden" name="transaction" value="${escapeHtml(transaction)}"><input type="hidden" name="consent_token" value="${escapeHtml(consentToken)}"><button type="submit" name="decision" value="approve">Allow</button><button type="submit" name="decision" value="deny">Deny</button></form><p><a href="${escapeHtml(config.privacyUrl)}">Privacy</a> · <a href="${escapeHtml(config.termsUrl)}">Terms</a> · <a href="${escapeHtml(config.supportUrl)}">Support</a></p></main></body></html>`, 200, config);
+  const redirect = new URL(redirectUri);
+  if (!['http:', 'https:'].includes(redirect.protocol)) {
+    throw new Error('Unsupported OAuth redirect URI');
+  }
+  return htmlResponse(`<!doctype html><html lang="en"><meta charset="utf-8"><title>Connect TapKit</title><body><main><h1>Connect ${escapeHtml(clientName)} to TapKit?</h1><p>Requested by ${escapeHtml(redirect.host)}.</p><p>This allows ${escapeHtml(clientName)} to view your connected iPhone screens and control those iPhones through TapKit.</p><p>This connection must not be used to make purchases, payments, or complete third-party checkout.</p><form method="post" action="/oauth/consent"><input type="hidden" name="transaction" value="${escapeHtml(transaction)}"><input type="hidden" name="consent_token" value="${escapeHtml(consentToken)}"><button type="submit" name="decision" value="approve">Allow</button><button type="submit" name="decision" value="deny">Deny</button></form><p><a href="${escapeHtml(config.privacyUrl)}">Privacy</a> · <a href="${escapeHtml(config.termsUrl)}">Terms</a> · <a href="${escapeHtml(config.supportUrl)}">Support</a></p></main></body></html>`, 200, config, redirect.origin);
 }
 
 export async function handleCallback(
@@ -171,7 +183,7 @@ export async function handleCallback(
       transaction,
       consentToken,
       client.client_name || 'the requesting application',
-      new URL(completed.redirect_uri).host,
+      completed.redirect_uri,
       config
     );
   } catch (error) {
