@@ -10,6 +10,11 @@ export type SupabaseAuthFailureReason =
   | 'incomplete_credentials'
   | 'expired_credentials'
   | 'invalid_user';
+export interface SupabaseCredentialResponseShape {
+  envelope: 'top_level' | 'session' | 'data_session' | 'unknown';
+  access_token: 'valid_string' | 'short_string' | 'missing_or_other';
+  refresh_token: 'valid_string' | 'short_string' | 'missing_or_other';
+}
 
 export class SupabaseAuthError extends Error {
   constructor(
@@ -17,11 +22,38 @@ export class SupabaseAuthError extends Error {
     readonly status: number,
     readonly transient: boolean,
     readonly reason: SupabaseAuthFailureReason,
-    readonly operation: SupabaseAuthOperation
+    readonly operation: SupabaseAuthOperation,
+    readonly responseShape?: SupabaseCredentialResponseShape
   ) {
     super(message);
     this.name = 'SupabaseAuthError';
   }
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function sessionPayload(body: Record<string, unknown>): {
+  payload: Record<string, unknown>;
+  envelope: SupabaseCredentialResponseShape['envelope'];
+} {
+  if ('access_token' in body || 'refresh_token' in body) {
+    return { payload: body, envelope: 'top_level' };
+  }
+  const directSession = recordValue(body.session);
+  if (directSession) return { payload: directSession, envelope: 'session' };
+  const data = recordValue(body.data);
+  const nestedSession = data ? recordValue(data.session) : null;
+  if (nestedSession) return { payload: nestedSession, envelope: 'data_session' };
+  return { payload: body, envelope: 'unknown' };
+}
+
+function credentialFieldShape(value: unknown): SupabaseCredentialResponseShape['access_token'] {
+  if (typeof value !== 'string') return 'missing_or_other';
+  return value.length >= 20 ? 'valid_string' : 'short_string';
 }
 
 export interface SupabaseSession {
@@ -138,8 +170,9 @@ async function parseSession(
   fetchImpl: FetchLike,
   operation: Exclude<SupabaseAuthOperation, 'user_lookup'>
 ): Promise<SupabaseSession> {
-  const accessToken = body.access_token;
-  const refreshToken = body.refresh_token;
+  const selected = sessionPayload(body);
+  const accessToken = selected.payload.access_token;
+  const refreshToken = selected.payload.refresh_token;
   if (typeof accessToken !== 'string' || accessToken.length < 20
     || typeof refreshToken !== 'string' || refreshToken.length < 20) {
     throw new SupabaseAuthError(
@@ -147,12 +180,18 @@ async function parseSession(
       502,
       true,
       'incomplete_credentials',
-      operation
+      operation,
+      {
+        envelope: selected.envelope,
+        access_token: credentialFieldShape(accessToken),
+        refresh_token: credentialFieldShape(refreshToken),
+      }
     );
   }
-  const expiresAtSeconds = typeof body.expires_at === 'number'
-    ? body.expires_at
-    : Math.floor(Date.now() / 1000) + (typeof body.expires_in === 'number' ? body.expires_in : 3600);
+  const expiresAtSeconds = typeof selected.payload.expires_at === 'number'
+    ? selected.payload.expires_at
+    : Math.floor(Date.now() / 1000)
+      + (typeof selected.payload.expires_in === 'number' ? selected.payload.expires_in : 3600);
   if (!Number.isFinite(expiresAtSeconds) || expiresAtSeconds <= Math.floor(Date.now() / 1000)) {
     throw new SupabaseAuthError(
       'The identity provider returned expired credentials',

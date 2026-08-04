@@ -290,6 +290,32 @@ test('Supabase login uses its PKCE flow without putting sessions in browser URLs
   assert.equal(requests[0].authorization, 'Bearer anon-test-key');
   assert.equal(requests[1].authorization, 'Bearer supabase-access-token-long-enough');
 
+  const nestedFetch: typeof fetch = async input => {
+    if (String(input).endsWith('/auth/v1/user')) {
+      return new Response(JSON.stringify({ id: '11111111-1111-4111-8111-111111111111' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        session: {
+          access_token: 'nested-supabase-access-token-long-enough',
+          refresh_token: 'nested-supabase-refresh-token-long-enough',
+          expires_in: 3600,
+        },
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  const nested = await exchangeSupabaseAuthorizationCode(
+    'nested-auth-code',
+    'nested-pkce-verifier',
+    cfg,
+    nestedFetch
+  );
+  assert.equal(nested.accessToken, 'nested-supabase-access-token-long-enough');
+  assert.equal(nested.refreshToken, 'nested-supabase-refresh-token-long-enough');
+
   requests.length = 0;
   await refreshSupabaseSession('existing-refresh-token-long-enough', cfg, fakeFetch);
   assert.deepEqual(requests[0].body, { refresh_token: 'existing-refresh-token-long-enough' });

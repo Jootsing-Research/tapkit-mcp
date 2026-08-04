@@ -40,6 +40,7 @@ function logCallbackFailure(
     details.transient = error.transient;
     details.reason = error.reason;
     details.operation = error.operation;
+    if (error.responseShape) details.response_shape = error.responseShape;
   } else if (error instanceof OAuthRepositoryError) {
     details.error_type = 'oauth_storage';
     details.status = error.status;
