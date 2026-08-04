@@ -421,6 +421,8 @@ test('browser authorization is cookie-bound, explicitly consented, and redirects
   const callbackCsp = callbackResponse.headers.get('Content-Security-Policy') || '';
   assert.match(callbackCsp, /frame-ancestors 'none'/);
   assert.match(callbackCsp, /form-action 'self' http:\/\/127\.0\.0\.1:50669/);
+  assert.match(callbackCsp, /style-src 'nonce-[A-Za-z0-9_-]+'/);
+  assert.match(callbackCsp, /img-src 'self'/);
   assert.equal(callbackCsp.includes('/callback/test'), false);
   assert.match(callbackResponse.headers.get('Set-Cookie') || '', /Max-Age=0/);
   assert.equal(loginPatches.length, 1);
@@ -430,7 +432,25 @@ test('browser authorization is cookie-bound, explicitly consented, and redirects
   );
 
   const consentHtml = await callbackResponse.text();
-  assert.match(consentHtml, /must not be used to make purchases, payments/);
+  const renderedNonce = /<style nonce="([A-Za-z0-9_-]+)">/.exec(consentHtml)?.[1] || '';
+  assert.ok(renderedNonce);
+  assert.match(callbackCsp, new RegExp(`style-src 'nonce-${renderedNonce}'`));
+  assert.match(consentHtml, /<title>Connect Browser test client to TapKit<\/title>/);
+  assert.match(consentHtml, /<h1 id="consent-title">Connect Browser test client to TapKit<\/h1>/);
+  assert.match(consentHtml, /Allow Browser test client to access your connected iPhones/);
+  assert.match(consentHtml, /Browser test client will be able to:/);
+  assert.match(consentHtml, /View connected iPhone screens/);
+  assert.match(consentHtml, /Control connected iPhones through TapKit/);
+  assert.match(consentHtml, /cannot be used to make purchases, payments/);
+  assert.match(consentHtml, /Requested by <strong>127\.0\.0\.1:50669<\/strong>/);
+  assert.match(consentHtml, /src="\/tapkit-app-icon\.png"/);
+  assert.match(consentHtml, /<form class="actions" method="post" action="\/oauth\/consent">/);
+  assert.match(consentHtml, /name="decision" value="approve">Allow access<\/button>/);
+  assert.match(consentHtml, /name="decision" value="deny">Cancel<\/button>/);
+  assert.match(consentHtml, /href="https:\/\/www\.tapkit\.ai\/privacy">Privacy<\/a>/);
+  assert.match(consentHtml, /href="https:\/\/www\.tapkit\.ai\/terms">Terms<\/a>/);
+  assert.match(consentHtml, /href="https:\/\/www\.tapkit\.ai\/support">Support<\/a>/);
+  assert.equal(consentHtml.includes('Signed in as'), false);
   const consentTransaction = /name="transaction" value="([^"]+)"/.exec(consentHtml)?.[1] || '';
   const consentToken = /name="consent_token" value="([^"]+)"/.exec(consentHtml)?.[1] || '';
   assert.equal(consentTransaction, transaction);
