@@ -2,11 +2,22 @@ import type { OAuthConfig } from './oauth-config.js';
 
 type FetchLike = typeof fetch;
 
+export type SupabaseAuthOperation = 'token_exchange' | 'session_refresh' | 'user_lookup';
+export type SupabaseAuthFailureReason =
+  | 'network_failure'
+  | 'provider_rejected'
+  | 'invalid_response'
+  | 'incomplete_credentials'
+  | 'expired_credentials'
+  | 'invalid_user';
+
 export class SupabaseAuthError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly transient: boolean
+    readonly transient: boolean,
+    readonly reason: SupabaseAuthFailureReason,
+    readonly operation: SupabaseAuthOperation
   ) {
     super(message);
     this.name = 'SupabaseAuthError';
@@ -36,7 +47,8 @@ async function jsonRequest(
   url: string,
   config: OAuthConfig,
   init: RequestInit,
-  fetchImpl: FetchLike
+  fetchImpl: FetchLike,
+  operation: SupabaseAuthOperation
 ): Promise<Record<string, unknown>> {
   let response: Response;
   try {
@@ -52,7 +64,13 @@ async function jsonRequest(
       signal: init.signal ?? AbortSignal.timeout(15_000),
     });
   } catch {
-    throw new SupabaseAuthError('The identity provider is temporarily unavailable', 0, true);
+    throw new SupabaseAuthError(
+      'The identity provider is temporarily unavailable',
+      0,
+      true,
+      'network_failure',
+      operation
+    );
   }
 
   let body: unknown;
@@ -69,10 +87,22 @@ async function jsonRequest(
         ? data.msg
         : 'The identity provider rejected the request';
     const transient = response.status >= 500 || [408, 425, 429].includes(response.status);
-    throw new SupabaseAuthError(description, response.status, transient);
+    throw new SupabaseAuthError(
+      description,
+      response.status,
+      transient,
+      'provider_rejected',
+      operation
+    );
   }
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    throw new SupabaseAuthError('The identity provider returned an invalid response', 502, true);
+    throw new SupabaseAuthError(
+      'The identity provider returned an invalid response',
+      502,
+      true,
+      'invalid_response',
+      operation
+    );
   }
   return body as Record<string, unknown>;
 }
@@ -86,11 +116,18 @@ async function getUserId(
     `${config.supabaseUrl}/auth/v1/user`,
     config,
     { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } },
-    fetchImpl
+    fetchImpl,
+    'user_lookup'
   );
   if (typeof user.id !== 'string'
     || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(user.id)) {
-    throw new SupabaseAuthError('The identity provider did not return a valid user', 502, true);
+    throw new SupabaseAuthError(
+      'The identity provider did not return a valid user',
+      502,
+      true,
+      'invalid_user',
+      'user_lookup'
+    );
   }
   return user.id;
 }
@@ -98,19 +135,32 @@ async function getUserId(
 async function parseSession(
   body: Record<string, unknown>,
   config: OAuthConfig,
-  fetchImpl: FetchLike
+  fetchImpl: FetchLike,
+  operation: Exclude<SupabaseAuthOperation, 'user_lookup'>
 ): Promise<SupabaseSession> {
   const accessToken = body.access_token;
   const refreshToken = body.refresh_token;
   if (typeof accessToken !== 'string' || accessToken.length < 20
     || typeof refreshToken !== 'string' || refreshToken.length < 20) {
-    throw new SupabaseAuthError('The identity provider returned incomplete credentials', 502, true);
+    throw new SupabaseAuthError(
+      'The identity provider returned incomplete credentials',
+      502,
+      true,
+      'incomplete_credentials',
+      operation
+    );
   }
   const expiresAtSeconds = typeof body.expires_at === 'number'
     ? body.expires_at
     : Math.floor(Date.now() / 1000) + (typeof body.expires_in === 'number' ? body.expires_in : 3600);
   if (!Number.isFinite(expiresAtSeconds) || expiresAtSeconds <= Math.floor(Date.now() / 1000)) {
-    throw new SupabaseAuthError('The identity provider returned expired credentials', 502, true);
+    throw new SupabaseAuthError(
+      'The identity provider returned expired credentials',
+      502,
+      true,
+      'expired_credentials',
+      operation
+    );
   }
   return {
     accessToken,
@@ -133,9 +183,10 @@ export async function exchangeSupabaseAuthorizationCode(
       method: 'POST',
       body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
     },
-    fetchImpl
+    fetchImpl,
+    'token_exchange'
   );
-  return parseSession(body, config, fetchImpl);
+  return parseSession(body, config, fetchImpl, 'token_exchange');
 }
 
 export async function refreshSupabaseSession(
@@ -147,7 +198,8 @@ export async function refreshSupabaseSession(
     `${config.supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
     config,
     { method: 'POST', body: JSON.stringify({ refresh_token: refreshToken }) },
-    fetchImpl
+    fetchImpl,
+    'session_refresh'
   );
-  return parseSession(body, config, fetchImpl);
+  return parseSession(body, config, fetchImpl, 'session_refresh');
 }

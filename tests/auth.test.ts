@@ -481,12 +481,16 @@ test('OAuth callback logs only safe failure classification and a correlation ID'
     error_type: event.error_type,
     status: event.status,
     transient: event.transient,
+    reason: event.reason,
+    operation: event.operation,
   }, {
     event: 'oauth_callback_failed',
     step: 'exchange_upstream_code',
     error_type: 'identity_provider',
     status: 400,
     transient: false,
+    reason: 'provider_rejected',
+    operation: 'token_exchange',
   });
   assert.match(event.error_id, /^[0-9a-f-]{36}$/i);
   const body = await response.text();
