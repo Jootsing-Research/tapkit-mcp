@@ -7,10 +7,43 @@ import {
   randomToken,
 } from '../../src/oauth-crypto.js';
 import { oauthErrorRedirect } from '../../src/oauth-http.js';
-import { OAuthRepository } from '../../src/oauth-repository.js';
-import { exchangeSupabaseAuthorizationCode } from '../../src/supabase-auth.js';
+import { OAuthRepository, OAuthRepositoryError } from '../../src/oauth-repository.js';
+import {
+  exchangeSupabaseAuthorizationCode,
+  SupabaseAuthError,
+} from '../../src/supabase-auth.js';
 
 export const runtime = 'edge';
+
+type CallbackFailureStep =
+  | 'decrypt_pkce_verifier'
+  | 'exchange_upstream_code'
+  | 'protect_upstream_session'
+  | 'complete_login'
+  | 'load_client'
+  | 'render_consent';
+
+function logCallbackFailure(
+  error: unknown,
+  step: CallbackFailureStep,
+  errorId: string
+): void {
+  const details: Record<string, unknown> = {
+    event: 'oauth_callback_failed',
+    error_id: errorId,
+    step,
+    error_type: 'unexpected',
+  };
+  if (error instanceof SupabaseAuthError) {
+    details.error_type = 'identity_provider';
+    details.status = error.status;
+    details.transient = error.transient;
+  } else if (error instanceof OAuthRepositoryError) {
+    details.error_type = 'oauth_storage';
+    details.status = error.status;
+  }
+  console.error(JSON.stringify(details));
+}
 
 function cookieValue(request: Request, name: string): string | null {
   const cookies = request.headers.get('Cookie') || '';
@@ -100,28 +133,37 @@ export async function handleCallback(
     return errorPage('The identity provider did not return a valid authorization code.', 400, config);
   }
 
+  let failureStep: CallbackFailureStep = 'decrypt_pkce_verifier';
   try {
     const verifier = await decryptSecret(
       authorization.upstream_pkce_verifier_ciphertext,
       config.encryptionKey
     );
+    failureStep = 'exchange_upstream_code';
     const session = await exchangeSupabaseAuthorizationCode(code, verifier, config, upstreamFetch);
+    failureStep = 'protect_upstream_session';
     const consentToken = randomToken('mcp_consent_');
-    const completed = await store.completeLogin(transactionHash, {
+    const protectedSession = {
       user_id: session.userId,
       upstream_access_token_ciphertext: await encryptSecret(session.accessToken, config.encryptionKey),
       upstream_refresh_token_ciphertext: await encryptSecret(session.refreshToken, config.encryptionKey),
       upstream_expires_at: session.expiresAt,
       consent_token_hash: await hashToken(consentToken),
+    };
+    failureStep = 'complete_login';
+    const completed = await store.completeLogin(transactionHash, {
+      ...protectedSession,
     });
     if (!completed) {
       return errorPage('This authorization request expired before sign-in completed.', 400, config);
     }
+    failureStep = 'load_client';
     const client = await store.getClient(completed.client_id);
     if (!client) {
       await store.failAuthorization(transactionHash).catch(() => undefined);
       return errorPage('The requesting application is no longer registered.', 400, config);
     }
+    failureStep = 'render_consent';
     return consentPage(
       transaction,
       consentToken,
@@ -129,9 +171,15 @@ export async function handleCallback(
       new URL(completed.redirect_uri).host,
       config
     );
-  } catch {
+  } catch (error) {
+    const errorId = crypto.randomUUID();
+    logCallbackFailure(error, failureStep, errorId);
     await store.failAuthorization(transactionHash).catch(() => undefined);
-    return errorPage('TapKit could not complete sign-in. Please start the connection again.', 502, config);
+    return errorPage(
+      `TapKit could not complete sign-in. Please start the connection again. Reference: ${errorId}`,
+      502,
+      config
+    );
   }
 }
 

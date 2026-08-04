@@ -437,6 +437,67 @@ test('browser authorization is cookie-bound, explicitly consented, and redirects
   assert.equal(approvals[0].codeHash, await hashToken(authorizationCode));
 });
 
+test('OAuth callback logs only safe failure classification and a correlation ID', async () => {
+  const cfg = config();
+  const transaction = `mcp_tx_${'a'.repeat(43)}`;
+  const verifier = 'sensitive-upstream-verifier';
+  const providerMessage = 'sensitive provider rejection details';
+  let failedAuthorizations = 0;
+  const repository = {
+    getAuthorizationByTransactionHash: async () => ({
+      transaction_hash: await hashToken(transaction),
+      status: 'pending_login',
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      upstream_pkce_verifier_ciphertext: await encryptSecret(verifier, encryptionKey),
+    }),
+    failAuthorization: async () => { failedAuthorizations += 1; },
+  } as unknown as OAuthRepository;
+  const upstreamFetch: typeof fetch = async () => new Response(JSON.stringify({
+    error_description: providerMessage,
+  }), {
+    status: 400,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const logged: string[] = [];
+  const originalConsoleError = console.error;
+  console.error = (...values: unknown[]) => { logged.push(values.map(String).join(' ')); };
+  let response: Response;
+  try {
+    response = await handleCallback(new Request(
+      'https://mcp.tapkit.ai/oauth/callback?code=sensitive-auth-code',
+      { headers: { Cookie: `tapkit_oauth_tx=${transaction}` } }
+    ), repository, cfg, upstreamFetch);
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(response.status, 502);
+  assert.equal(failedAuthorizations, 1);
+  assert.equal(logged.length, 1);
+  const event = JSON.parse(logged[0]);
+  assert.deepEqual({
+    event: event.event,
+    step: event.step,
+    error_type: event.error_type,
+    status: event.status,
+    transient: event.transient,
+  }, {
+    event: 'oauth_callback_failed',
+    step: 'exchange_upstream_code',
+    error_type: 'identity_provider',
+    status: 400,
+    transient: false,
+  });
+  assert.match(event.error_id, /^[0-9a-f-]{36}$/i);
+  const body = await response.text();
+  assert.match(body, new RegExp(event.error_id));
+  const combinedOutput = `${logged.join(' ')} ${body}`;
+  assert.equal(combinedOutput.includes(providerMessage), false);
+  assert.equal(combinedOutput.includes('sensitive-auth-code'), false);
+  assert.equal(combinedOutput.includes(verifier), false);
+  assert.equal(combinedOutput.includes(transaction), false);
+});
+
 test('MCP bearer authentication resolves an opaque token to a separate upstream session', async () => {
   const upstreamToken = 'supabase.jwt.upstream-value';
   const cfg = config();
