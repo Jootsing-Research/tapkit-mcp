@@ -1,277 +1,155 @@
-/**
- * MCP API Route for Vercel
- * Handles Streamable HTTP transport for MCP using Web Standards
- */
-
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { toolDefinitions, executeTool } from '../../src/tools.js';
+import {
+  authenticateMcpRequest,
+  bearerChallenge,
+  bearerTokenFromRequest,
+  McpAuthError,
+  type McpAuthentication,
+} from '../../src/mcp-auth.js';
+import { getOAuthConfig } from '../../src/oauth-config.js';
+import { consumeRequestRateLimit } from '../../src/oauth-rate-limit.js';
+import { OAuthRepository } from '../../src/oauth-repository.js';
 import { TapKitClient } from '../../src/tapkit-client.js';
+import { executeTool, toolDefinitions } from '../../src/tools.js';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// Store active transports by session ID for stateful sessions
-const sessions = new Map<string, {
-  transport: WebStandardStreamableHTTPServerTransport;
-  server: Server;
-}>();
+const OAUTH_SECURITY_SCHEMES = [{ type: 'oauth2' as const, scopes: [] as string[] }];
 
-function createMCPServer(authToken: string): Server {
+export function remoteToolDescriptors() {
+  return toolDefinitions.map(tool => ({
+    name: tool.name,
+    title: tool.title,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    annotations: tool.annotations,
+    securitySchemes: OAUTH_SECURITY_SCHEMES,
+    _meta: { securitySchemes: OAUTH_SECURITY_SCHEMES },
+  }));
+}
+
+export function createServer(client: TapKitClient): Server {
   const server = new Server(
-    {
-      name: 'tapkit',
-      version: '1.3.0',
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    }
+    { name: 'tapkit', version: '1.3.0' },
+    { capabilities: { tools: {} } }
   );
-
-  const tapkitClient = new TapKitClient(authToken);
-
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: toolDefinitions.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-      })),
-    };
-  });
-
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: remoteToolDescriptors(),
+  }));
+  server.setRequestHandler(CallToolRequestSchema, async request => {
     const { name, arguments: args } = request.params;
-    return executeTool(tapkitClient, name, args || {});
+    return executeTool(client, name, args || {});
   });
-
   return server;
 }
 
-function getAuthToken(request: Request): string | null {
-  const authHeader = request.headers.get('Authorization');
-  const apiKey = request.headers.get('X-API-Key');
+function authFailureResponse(request: Request, error: McpAuthError): Response {
+  const postBody = {
+    jsonrpc: '2.0',
+    error: { code: -32001, message: error.message },
+    id: null,
+  };
+  const otherBody = { error: 'UNAUTHORIZED', message: error.message };
+  return new Response(JSON.stringify(request.method === 'POST' ? postBody : otherBody), {
+    status: 401,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'WWW-Authenticate': bearerChallenge(error.failure),
+    },
+  });
+}
 
-  if (authHeader?.startsWith('Bearer ')) {
-    return authHeader.slice(7);
+async function authenticate(request: Request): Promise<McpAuthentication | Response> {
+  try {
+    // Parse the bearer before constructing storage so missing/invalid credentials
+    // always receive the required 401 challenge, even during a storage outage.
+    bearerTokenFromRequest(request);
+    const config = getOAuthConfig();
+    const repository = new OAuthRepository(fetch, config);
+    const authentication = await authenticateMcpRequest(request, repository, config);
+    const rateLimit = await consumeRequestRateLimit(request, repository, config, {
+      bucket: 'mcp_request',
+      limit: 300,
+      windowSeconds: 60,
+    }, authentication.principal.grantId);
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32002, message: 'Too many MCP requests. Wait briefly and try again.' },
+        id: null,
+      }), {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'Retry-After': String(rateLimit.retryAfterSeconds),
+        },
+      });
+    }
+    return authentication;
+  } catch (error) {
+    if (error instanceof McpAuthError) return authFailureResponse(request, error);
+    return new Response(JSON.stringify({ error: 'AUTH_SERVICE_UNAVAILABLE' }), {
+      status: 503,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      },
+    });
   }
-  if (apiKey) {
-    return apiKey;
+}
+
+function mcpErrorResponse(status: number, message: string, headers?: HeadersInit): Response {
+  return new Response(JSON.stringify({
+    jsonrpc: '2.0',
+    error: { code: -32000, message },
+    id: null,
+  }), {
+    status,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers },
+  });
+}
+
+export async function handleAuthenticatedPost(
+  request: Request,
+  authentication: McpAuthentication
+): Promise<Response> {
+  const client = new TapKitClient(authentication.principal.upstreamAccessToken);
+  const server = createServer(client);
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
+
+  try {
+    await server.connect(transport);
+    return await transport.handleRequest(request, { authInfo: authentication.authInfo });
+  } catch {
+    await transport.close().catch(() => undefined);
+    return mcpErrorResponse(500, 'TapKit could not handle the MCP request.');
   }
-  return null;
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const authToken = getAuthToken(request);
-
-  if (!authToken) {
-    return new Response(
-      JSON.stringify({
-        jsonrpc: '2.0',
-        error: {
-          code: -32001,
-          message: 'Authentication required. Please provide a Bearer token or API key.',
-        },
-        id: null,
-      }),
-      {
-        status: 401,
-        headers: {
-          'Content-Type': 'application/json',
-          'WWW-Authenticate': 'Bearer',
-        },
-      }
-    );
-  }
-
-  const sessionId = request.headers.get('Mcp-Session-Id');
-
-  try {
-    let transport: WebStandardStreamableHTTPServerTransport;
-    let server: Server;
-
-    if (sessionId && sessions.has(sessionId)) {
-      // Reuse existing session
-      const session = sessions.get(sessionId)!;
-      transport = session.transport;
-      server = session.server;
-      // Handle the request with existing session
-      return transport.handleRequest(request);
-    }
-
-    // For new sessions or lost sessions, we need to check if this is an initialize request
-    // Clone the request so we can read the body without consuming it
-    const clonedRequest = request.clone();
-    let requestBody: { method?: string; id?: string | number | null };
-    try {
-      requestBody = await clonedRequest.json();
-    } catch {
-      return new Response(
-        JSON.stringify({
-          jsonrpc: '2.0',
-          error: {
-            code: -32700,
-            message: 'Parse error: Invalid JSON',
-          },
-          id: null,
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // Create new transport and server
-    // Use the existing sessionId if provided (for serverless continuity), or generate a new one
-    const useSessionId = sessionId || crypto.randomUUID();
-
-    transport = new WebStandardStreamableHTTPServerTransport({
-      sessionIdGenerator: () => useSessionId,
-      onsessioninitialized: (newSessionId) => {
-        sessions.set(newSessionId, { transport, server });
-        // Clean up old sessions after 30 minutes
-        setTimeout(() => {
-          sessions.delete(newSessionId);
-        }, 30 * 60 * 1000);
-      },
-      enableJsonResponse: true, // Allow JSON responses for simple requests
-    });
-
-    server = createMCPServer(authToken);
-    await server.connect(transport);
-
-    // If this is NOT an initialize request but we had to create a new transport
-    // (serverless instance lost session state), we need to handle this specially.
-    // The MCP SDK requires initialize to be called first, so we'll synthesize one.
-    if (requestBody.method !== 'initialize') {
-
-      // Create synthetic headers with required Accept types
-      const syntheticHeaders = new Headers(request.headers);
-      syntheticHeaders.set('Accept', 'application/json, text/event-stream');
-      syntheticHeaders.set('Mcp-Session-Id', useSessionId);
-
-      // Create a synthetic initialize request to bootstrap the server
-      const initRequest = new Request(request.url, {
-        method: 'POST',
-        headers: syntheticHeaders,
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'initialize',
-          params: {
-            protocolVersion: '2024-11-05',
-            capabilities: {},
-            clientInfo: {
-              name: 'reconnected-client',
-              version: '1.3.0',
-            },
-          },
-          id: 'synthetic-init',
-        }),
-      });
-
-      // Initialize the server first
-      await transport.handleRequest(initRequest);
-
-      // Send the 'initialized' notification (MCP protocol requirement)
-      const initializedNotification = new Request(request.url, {
-        method: 'POST',
-        headers: syntheticHeaders,
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'notifications/initialized',
-        }),
-      });
-      await transport.handleRequest(initializedNotification);
-
-      // Modify the original request to include the session ID
-      const modifiedHeaders = new Headers(request.headers);
-      modifiedHeaders.set('Mcp-Session-Id', useSessionId);
-      if (!modifiedHeaders.get('Accept')?.includes('text/event-stream')) {
-        modifiedHeaders.set('Accept', 'application/json, text/event-stream');
-      }
-
-      const modifiedRequest = new Request(request.url, {
-        method: request.method,
-        headers: modifiedHeaders,
-        body: JSON.stringify(requestBody),
-      });
-      return transport.handleRequest(modifiedRequest);
-    }
-
-    // Handle the actual request (for initialize, it can go through directly)
-    return transport.handleRequest(request);
-  } catch (error) {
-    console.error('MCP error:', error);
-    return new Response(
-      JSON.stringify({
-        jsonrpc: '2.0',
-        error: {
-          code: -32603,
-          message: error instanceof Error ? error.message : 'Internal error',
-        },
-        id: null,
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-  }
+  const authentication = await authenticate(request);
+  if (authentication instanceof Response) return authentication;
+  return handleAuthenticatedPost(request, authentication);
 }
 
-export async function GET(request: Request): Promise<Response> {
-  const authToken = getAuthToken(request);
-
-  if (!authToken) {
-    return new Response(
-      JSON.stringify({
-        error: 'AUTH_REQUIRED',
-        message: 'Authentication required.',
-      }),
-      {
-        status: 401,
-        headers: {
-          'Content-Type': 'application/json',
-          'WWW-Authenticate': 'Bearer',
-        },
-      }
-    );
-  }
-
-  const sessionId = request.headers.get('Mcp-Session-Id');
-
-  if (!sessionId || !sessions.has(sessionId)) {
-    return new Response(
-      JSON.stringify({
-        error: 'SESSION_NOT_FOUND',
-        message: 'Session not found. Please initialize a new session via POST.',
-      }),
-      {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-  }
-
-  const session = sessions.get(sessionId)!;
-  return session.transport.handleRequest(request);
+async function methodNotAllowed(request: Request): Promise<Response> {
+  const authentication = await authenticate(request);
+  if (authentication instanceof Response) return authentication;
+  return mcpErrorResponse(405, 'Method not allowed. This stateless MCP endpoint accepts POST.', {
+    Allow: 'POST',
+  });
 }
 
-export async function DELETE(request: Request): Promise<Response> {
-  const sessionId = request.headers.get('Mcp-Session-Id');
-
-  if (sessionId && sessions.has(sessionId)) {
-    const session = sessions.get(sessionId)!;
-    await session.transport.close();
-    sessions.delete(sessionId);
-  }
-
-  return new Response(null, { status: 204 });
-}
+export const GET = methodNotAllowed;
+export const DELETE = methodNotAllowed;

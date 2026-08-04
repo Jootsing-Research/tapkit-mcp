@@ -4,6 +4,7 @@
  */
 
 const TAPKIT_API_URL = process.env.TAPKIT_API_URL || 'https://api.tapkit.ai/v1';
+const TAPKIT_API_TIMEOUT_MS = 35_000;
 
 export interface Phone {
   id: string;
@@ -86,6 +87,10 @@ export class TapKitClient {
     this.authToken = authToken;
   }
 
+  setAuthToken(authToken: string): void {
+    this.authToken = authToken;
+  }
+
   private async request<T>(
     method: string,
     endpoint: string,
@@ -109,6 +114,7 @@ export class TapKitClient {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(TAPKIT_API_TIMEOUT_MS),
       });
     } catch (fetchError) {
       // Network error or fetch failed
@@ -448,7 +454,7 @@ export class TapKitAPIError extends Error {
       case 'NO_PHONES_CONNECTED':
         return 'No phones connected. Please ensure TapKit is running and a phone is connected.';
       case 'NO_PHONE_SELECTED':
-        return this.message;
+        return 'No phone is selected. Call list_phones, then pass a valid phone_id.';
       case 'PHONE_NOT_SELECTED':
         return 'Phone is connected but not active. Pass a valid phone_id and try the action again.';
       case 'PHONE_NOT_CONNECTED':
@@ -467,13 +473,19 @@ export class TapKitAPIError extends Error {
       case 'SUBSCRIPTION_REQUIRED':
         return 'An active TapKit subscription is required.';
       case 'NETWORK_ERROR':
-        return `Network error: ${this.message}`;
+        return 'TapKit could not reach the phone service. Check the connection and try again.';
       case 'USER_NOT_FOUND':
         return 'User not found. Please ensure you have a TapKit account and have connected at least once via the app.';
       case 'ORG_NOT_FOUND':
         return 'Organization not found. Please ensure your account is set up correctly.';
       default:
-        return `${this.code}: ${this.message}`;
+        if (this.status === 429) {
+          return 'TapKit is receiving too many requests. Wait briefly and try again.';
+        }
+        if (this.status >= 500 || this.status === 0) {
+          return 'TapKit is temporarily unavailable. Please try again.';
+        }
+        return 'TapKit could not complete this action. Check the phone state and try again.';
     }
   }
 }

@@ -1,221 +1,140 @@
-/**
- * OAuth Callback Endpoint
- * Handles Supabase OAuth redirect and generates authorization code
- */
+import { getOAuthConfig, type OAuthConfig } from '../../src/oauth-config.js';
+import {
+  decryptSecret,
+  encryptSecret,
+  escapeHtml,
+  hashToken,
+  randomToken,
+} from '../../src/oauth-crypto.js';
+import { oauthErrorRedirect } from '../../src/oauth-http.js';
+import { OAuthRepository } from '../../src/oauth-repository.js';
+import { exchangeSupabaseAuthorizationCode } from '../../src/supabase-auth.js';
 
 export const runtime = 'edge';
 
-import { generateCode } from '../../src/oauth-store.js';
+function cookieValue(request: Request, name: string): string | null {
+  const cookies = request.headers.get('Cookie') || '';
+  for (const part of cookies.split(';')) {
+    const [key, ...value] = part.trim().split('=');
+    if (key === name) return value.join('=');
+  }
+  return null;
+}
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://dlrtwwcgdfekjcyfqfcr.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+function clearTransactionCookie(config: OAuthConfig): string {
+  const secure = config.issuer.startsWith('https:') ? '; Secure' : '';
+  return `tapkit_oauth_tx=; Path=/oauth/callback; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
+}
 
-export async function GET(request: Request): Promise<Response> {
-  const url = new URL(request.url);
+function htmlResponse(html: string, status: number, config: OAuthConfig): Response {
+  return new Response(html, {
+    status,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      Pragma: 'no-cache',
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+      'Set-Cookie': clearTransactionCookie(config),
+    },
+  });
+}
 
-  // Supabase returns the tokens in the URL fragment for implicit flow
-  // or as query params for PKCE flow
-  const accessToken = url.searchParams.get('access_token');
-  const refreshToken = url.searchParams.get('refresh_token');
-  const error = url.searchParams.get('error');
-  const errorDescription = url.searchParams.get('error_description');
-  // Our state is passed via mcp_state (not Supabase's state param)
-  const stateParam = url.searchParams.get('mcp_state');
+function errorPage(message: string, status: number, config: OAuthConfig): Response {
+  return htmlResponse(`<!doctype html><html lang="en"><meta charset="utf-8"><title>TapKit authorization</title><body><main><h1>Authorization could not be completed</h1><p>${escapeHtml(message)}</p><p><a href="${escapeHtml(config.supportUrl)}">TapKit support</a></p></main></body></html>`, status, config);
+}
 
-  // Handle Supabase error
-  if (error) {
-    return new Response(
-      `
-      <!DOCTYPE html>
-      <html>
-        <head><title>Authentication Error</title></head>
-        <body>
-          <h1>Authentication Error</h1>
-          <p>${escapeHtml(errorDescription || error)}</p>
-          <p>Please close this window and try again.</p>
-        </body>
-      </html>
-      `,
-      {
-        status: 400,
-        headers: { 'Content-Type': 'text/html' },
-      }
-    );
+function consentPage(
+  transaction: string,
+  consentToken: string,
+  clientName: string,
+  redirectHost: string,
+  config: OAuthConfig
+): Response {
+  return htmlResponse(`<!doctype html><html lang="en"><meta charset="utf-8"><title>Connect TapKit</title><body><main><h1>Connect ${escapeHtml(clientName)} to TapKit?</h1><p>Requested by ${escapeHtml(redirectHost)}.</p><p>This allows ${escapeHtml(clientName)} to view your connected iPhone screens and control those iPhones through TapKit.</p><p>This connection must not be used to make purchases, payments, or complete third-party checkout.</p><form method="post" action="/oauth/consent"><input type="hidden" name="transaction" value="${escapeHtml(transaction)}"><input type="hidden" name="consent_token" value="${escapeHtml(consentToken)}"><button type="submit" name="decision" value="approve">Allow</button><button type="submit" name="decision" value="deny">Deny</button></form><p><a href="${escapeHtml(config.privacyUrl)}">Privacy</a> · <a href="${escapeHtml(config.termsUrl)}">Terms</a> · <a href="${escapeHtml(config.supportUrl)}">Support</a></p></main></body></html>`, 200, config);
+}
+
+export async function handleCallback(
+  request: Request,
+  repository?: OAuthRepository,
+  config: OAuthConfig = getOAuthConfig(),
+  upstreamFetch: typeof fetch = fetch
+): Promise<Response> {
+  const params = new URL(request.url).searchParams;
+  const transaction = cookieValue(request, 'tapkit_oauth_tx');
+  if (!transaction || !/^mcp_tx_[A-Za-z0-9_-]{43}$/.test(transaction)) {
+    return errorPage('The authorization request is missing or invalid. Please start again.', 400, config);
+  }
+  const transactionHash = await hashToken(transaction);
+
+  let store: OAuthRepository;
+  let authorization;
+  try {
+    store = repository ?? new OAuthRepository(fetch, config);
+    authorization = await store.getAuthorizationByTransactionHash(transactionHash);
+  } catch {
+    return errorPage('TapKit authorization is temporarily unavailable. Please try again.', 503, config);
+  }
+  if (!authorization
+    || authorization.status !== 'pending_login'
+    || Date.parse(authorization.expires_at) <= Date.now()) {
+    return errorPage('This authorization request has expired or was already used.', 400, config);
   }
 
-  // Decode the state to get original client params
-  let oauthState: {
-    client_redirect_uri: string;
-    client_state: string;
-    code_challenge?: string;
-    code_challenge_method?: string;
-    scope?: string;
-  };
+  const providerError = params.get('error') || params.get('error_code');
+  if (providerError) {
+    await store.failAuthorization(transactionHash).catch(() => undefined);
+    const response = oauthErrorRedirect(
+      authorization.redirect_uri,
+      authorization.client_state,
+      'access_denied',
+      'Sign-in was cancelled or denied.'
+    );
+    response.headers.set('Set-Cookie', clearTransactionCookie(config));
+    return response;
+  }
+  const code = params.get('code');
+  if (!code || !authorization.upstream_pkce_verifier_ciphertext) {
+    await store.failAuthorization(transactionHash).catch(() => undefined);
+    return errorPage('The identity provider did not return a valid authorization code.', 400, config);
+  }
 
   try {
-    if (!stateParam) {
-      throw new Error('Missing state parameter');
+    const verifier = await decryptSecret(
+      authorization.upstream_pkce_verifier_ciphertext,
+      config.encryptionKey
+    );
+    const session = await exchangeSupabaseAuthorizationCode(code, verifier, config, upstreamFetch);
+    const consentToken = randomToken('mcp_consent_');
+    const completed = await store.completeLogin(transactionHash, {
+      user_id: session.userId,
+      upstream_access_token_ciphertext: await encryptSecret(session.accessToken, config.encryptionKey),
+      upstream_refresh_token_ciphertext: await encryptSecret(session.refreshToken, config.encryptionKey),
+      upstream_expires_at: session.expiresAt,
+      consent_token_hash: await hashToken(consentToken),
+    });
+    if (!completed) {
+      return errorPage('This authorization request expired before sign-in completed.', 400, config);
     }
-    oauthState = JSON.parse(Buffer.from(stateParam, 'base64url').toString());
+    const client = await store.getClient(completed.client_id);
+    if (!client) {
+      await store.failAuthorization(transactionHash).catch(() => undefined);
+      return errorPage('The requesting application is no longer registered.', 400, config);
+    }
+    return consentPage(
+      transaction,
+      consentToken,
+      client.client_name || 'the requesting application',
+      new URL(completed.redirect_uri).host,
+      config
+    );
   } catch {
-    return new Response(
-      JSON.stringify({
-        error: 'invalid_state',
-        error_description: 'Invalid or missing state parameter',
-      }),
-      {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    await store.failAuthorization(transactionHash).catch(() => undefined);
+    return errorPage('TapKit could not complete sign-in. Please start the connection again.', 502, config);
   }
-
-  // If we have tokens directly (from query params), generate auth code
-  if (accessToken) {
-    return await handleTokens(
-      accessToken,
-      refreshToken || '',
-      oauthState
-    );
-  }
-
-  // If Supabase redirects with a code (PKCE flow), exchange it
-  const supabaseCode = url.searchParams.get('code');
-  if (supabaseCode) {
-    try {
-      // Exchange Supabase code for tokens
-      const tokenResponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=authorization_code`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          code: supabaseCode,
-        }),
-      });
-
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json();
-        throw new Error(errorData.error_description || 'Token exchange failed');
-      }
-
-      const tokens = await tokenResponse.json();
-
-      return await handleTokens(
-        tokens.access_token,
-        tokens.refresh_token || '',
-        oauthState
-      );
-    } catch (err) {
-      return new Response(
-        `
-        <!DOCTYPE html>
-        <html>
-          <head><title>Authentication Error</title></head>
-          <body>
-            <h1>Authentication Error</h1>
-            <p>${escapeHtml(err instanceof Error ? err.message : 'Token exchange failed')}</p>
-            <p>Please close this window and try again.</p>
-          </body>
-        </html>
-        `,
-        {
-          status: 500,
-          headers: { 'Content-Type': 'text/html' },
-        }
-      );
-    }
-  }
-
-  // If we get here with no tokens and no code, show a page that extracts from fragment
-  // (Supabase sometimes returns tokens in the URL fragment for implicit flow)
-  return new Response(
-    `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>TapKit - Completing Authentication</title>
-        <style>
-          body { font-family: system-ui, sans-serif; padding: 40px; text-align: center; }
-          .spinner { animation: spin 1s linear infinite; }
-          @keyframes spin { 100% { transform: rotate(360deg); } }
-        </style>
-        <script>
-          // Extract tokens from URL fragment if present
-          const hash = window.location.hash.substring(1);
-          if (hash) {
-            const params = new URLSearchParams(hash);
-            const accessToken = params.get('access_token');
-            const refreshToken = params.get('refresh_token');
-
-            if (accessToken) {
-              // Redirect to self with tokens as query params
-              const url = new URL(window.location.href);
-              url.hash = '';
-              url.searchParams.set('access_token', accessToken);
-              if (refreshToken) {
-                url.searchParams.set('refresh_token', refreshToken);
-              }
-              // Preserve mcp_state from original URL
-              const mcpState = new URL(window.location.href).searchParams.get('mcp_state');
-              if (mcpState) {
-                url.searchParams.set('mcp_state', mcpState);
-              }
-              window.location.href = url.toString();
-            } else {
-              document.body.innerHTML = '<h1>Authentication Error</h1><p>No access token received.</p>';
-            }
-          } else {
-            document.body.innerHTML = '<h1>Authentication Error</h1><p>No authentication data received. Please try again.</p>';
-          }
-        </script>
-      </head>
-      <body>
-        <h1>Completing authentication...</h1>
-        <p class="spinner">⏳</p>
-        <p>Please wait while we complete the sign-in process.</p>
-      </body>
-    </html>
-    `,
-    {
-      status: 200,
-      headers: { 'Content-Type': 'text/html' },
-    }
-  );
 }
 
-async function handleTokens(
-  accessToken: string,
-  refreshToken: string,
-  oauthState: {
-    client_redirect_uri: string;
-    client_state: string;
-    code_challenge?: string;
-    code_challenge_method?: string;
-  }
-): Promise<Response> {
-  // Generate a signed authorization code containing the tokens
-  const authCode = await generateCode({
-    accessToken,
-    refreshToken,
-    codeChallenge: oauthState.code_challenge,
-    codeChallengeMethod: oauthState.code_challenge_method,
-  });
-
-  // Redirect back to the MCP client with the authorization code
-  const redirectUrl = new URL(oauthState.client_redirect_uri);
-  redirectUrl.searchParams.set('code', authCode);
-  redirectUrl.searchParams.set('state', oauthState.client_state);
-
-  return Response.redirect(redirectUrl.toString(), 302);
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+export async function GET(request: Request): Promise<Response> {
+  return handleCallback(request);
 }

@@ -1,88 +1,63 @@
-/**
- * OAuth Dynamic Client Registration Endpoint
- * RFC 7591 - OAuth 2.0 Dynamic Client Registration
- *
- * MCP clients use this to register themselves before starting OAuth flow.
- * Since we're stateless, we generate a client_id without storing it.
- */
+import { getOAuthConfig, type OAuthConfig } from '../../src/oauth-config.js';
+import { noStoreJsonResponse, oauthErrorResponse, parseJsonBody } from '../../src/oauth-http.js';
+import { consumeRequestRateLimit, rateLimitResponse } from '../../src/oauth-rate-limit.js';
+import { OAuthRepository } from '../../src/oauth-repository.js';
+import {
+  ClientMetadataError,
+  validateClientRegistration,
+} from '../../src/oauth-validation.js';
+import { randomToken } from '../../src/oauth-crypto.js';
 
 export const runtime = 'edge';
 
-interface ClientRegistrationRequest {
-  redirect_uris: string[];
-  client_name?: string;
-  client_uri?: string;
-  logo_uri?: string;
-  scope?: string;
-  grant_types?: string[];
-  response_types?: string[];
-  token_endpoint_auth_method?: string;
-}
-
-interface ClientRegistrationResponse {
-  client_id: string;
-  client_secret?: string;
-  client_id_issued_at: number;
-  client_secret_expires_at?: number;
-  redirect_uris: string[];
-  client_name?: string;
-  client_uri?: string;
-  logo_uri?: string;
-  scope?: string;
-  grant_types: string[];
-  response_types: string[];
-  token_endpoint_auth_method: string;
+export async function handleRegistration(
+  request: Request,
+  repository?: OAuthRepository,
+  config: OAuthConfig = getOAuthConfig()
+): Promise<Response> {
+  try {
+    const store = repository ?? new OAuthRepository(fetch, config);
+    if (!repository) {
+      const rateLimit = await consumeRequestRateLimit(request, store, config, {
+        bucket: 'oauth_register',
+        limit: 20,
+        windowSeconds: 60 * 60,
+      });
+      if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retryAfterSeconds);
+    }
+    const metadata = await parseJsonBody(request);
+    const record = validateClientRegistration(metadata, randomToken('mcp_client_', 24));
+    const created = await store.createClient(record);
+    const response: Record<string, unknown> = {
+      client_id: created.client_id,
+      client_id_issued_at: Math.floor(Date.now() / 1000),
+      redirect_uris: created.redirect_uris,
+      grant_types: created.grant_types,
+      response_types: created.response_types,
+      token_endpoint_auth_method: created.token_endpoint_auth_method,
+    };
+    if (created.client_name) response.client_name = created.client_name;
+    if (created.client_uri) response.client_uri = created.client_uri;
+    if (created.logo_uri) response.logo_uri = created.logo_uri;
+    return noStoreJsonResponse(response, 201);
+  } catch (error) {
+    if (error instanceof ClientMetadataError || error instanceof SyntaxError) {
+      return oauthErrorResponse('invalid_client_metadata', error.message);
+    }
+    if (error instanceof Error && (
+      error.message === 'Content-Type must be application/json'
+      || error.message === 'Request body is too large'
+    )) {
+      return oauthErrorResponse('invalid_client_metadata', error.message);
+    }
+    return oauthErrorResponse(
+      'server_error',
+      'TapKit could not register the OAuth client. Please try again.',
+      500
+    );
+  }
 }
 
 export async function POST(request: Request): Promise<Response> {
-  try {
-    const body: ClientRegistrationRequest = await request.json();
-
-    // Validate required fields
-    if (!body.redirect_uris || body.redirect_uris.length === 0) {
-      return new Response(
-        JSON.stringify({
-          error: 'invalid_client_metadata',
-          error_description: 'redirect_uris is required',
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // Generate a random client_id
-    // In a stateless setup, we don't need to store this
-    const clientId = `mcp_${crypto.randomUUID().replace(/-/g, '')}`;
-
-    const response: ClientRegistrationResponse = {
-      client_id: clientId,
-      client_id_issued_at: Math.floor(Date.now() / 1000),
-      redirect_uris: body.redirect_uris,
-      client_name: body.client_name,
-      client_uri: body.client_uri,
-      logo_uri: body.logo_uri,
-      scope: body.scope || 'phone:read phone:control',
-      grant_types: body.grant_types || ['authorization_code', 'refresh_token'],
-      response_types: body.response_types || ['code'],
-      token_endpoint_auth_method: body.token_endpoint_auth_method || 'none',
-    };
-
-    return new Response(JSON.stringify(response, null, 2), {
-      status: 201,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch {
-    return new Response(
-      JSON.stringify({
-        error: 'invalid_client_metadata',
-        error_description: 'Invalid JSON in request body',
-      }),
-      {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-  }
+  return handleRegistration(request);
 }

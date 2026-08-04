@@ -4,12 +4,21 @@
 
 import sharp from 'sharp';
 import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE, type PhoneStatus, type PinchAction, type ConsumeMode } from './tapkit-client.js';
+import { bearerChallenge } from './mcp-auth.js';
 
 // Tool input schemas (JSON Schema format)
 export const toolDefinitions = [
   {
     name: 'list_phones',
+    title: 'List phones',
     description: 'List all phones with their connection status, IDs, and dimensions. ALWAYS call this first to discover phone_ids — every other phone-targeting tool requires a phone_id parameter.',
+    annotations: {
+      title: 'List phones',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {},
@@ -18,7 +27,15 @@ export const toolDefinitions = [
   },
   {
     name: 'screenshot',
+    title: 'Take screenshot',
     description: 'Take a screenshot of the iPhone screen. Returns the current screen state as an image. Use this to see what is on screen before and after actions.',
+    annotations: {
+      title: 'Take screenshot',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -32,7 +49,15 @@ export const toolDefinitions = [
   },
   {
     name: 'tap',
+    title: 'Tap screen',
     description: 'Tap at specific x,y coordinates on the screen. Use screenshot first to identify the location.',
+    annotations: {
+      title: 'Tap screen',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -54,7 +79,15 @@ export const toolDefinitions = [
   },
   {
     name: 'type_text',
+    title: 'Type text',
     description: 'Type text into the currently focused text field through the TapKit type API. Make sure a text field is active first (tap it if needed).',
+    annotations: {
+      title: 'Type text',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -72,7 +105,15 @@ export const toolDefinitions = [
   },
   {
     name: 'press_home',
+    title: 'Press Home',
     description: 'Press the home button to go to the home screen or exit the current app.',
+    annotations: {
+      title: 'Press Home',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -86,7 +127,15 @@ export const toolDefinitions = [
   },
   {
     name: 'swipe',
+    title: 'Swipe screen',
     description: 'Perform a fast flick/swipe gesture at a position. Useful for dismissing, switching pages, or quick scrolling.',
+    annotations: {
+      title: 'Swipe screen',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -113,7 +162,15 @@ export const toolDefinitions = [
   },
   {
     name: 'drag',
+    title: 'Drag on screen',
     description: 'Drag from one point to another. Useful for moving sliders, reordering items, or precise scroll gestures.',
+    annotations: {
+      title: 'Drag on screen',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -131,7 +188,15 @@ export const toolDefinitions = [
   },
   {
     name: 'hold_and_drag',
+    title: 'Hold and drag',
     description: 'Long press then drag to another point. Useful for drag-and-drop, reordering lists, or moving items.',
+    annotations: {
+      title: 'Hold and drag',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -181,7 +246,15 @@ export const toolDefinitions = [
   // },
   {
     name: 'double_tap',
+    title: 'Double tap screen',
     description: 'Double tap at specific coordinates. Useful for zooming or selecting text.',
+    annotations: {
+      title: 'Double tap screen',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -203,7 +276,15 @@ export const toolDefinitions = [
   },
   {
     name: 'long_press',
+    title: 'Long press screen',
     description: 'Long press (tap and hold) at specific coordinates. Useful for context menus or drag operations.',
+    annotations: {
+      title: 'Long press screen',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -229,7 +310,15 @@ export const toolDefinitions = [
   },
   {
     name: 'lock',
+    title: 'Lock phone',
     description: 'Lock the iPhone screen.',
+    annotations: {
+      title: 'Lock phone',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -243,7 +332,15 @@ export const toolDefinitions = [
   },
   {
     name: 'unlock',
+    title: 'Unlock phone',
     description: 'Unlock the iPhone screen.',
+    annotations: {
+      title: 'Unlock phone',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -418,7 +515,15 @@ export const toolDefinitions = [
   // },
   {
     name: 'get_phone_status',
+    title: 'Get phone status',
     description: 'Get real-time status of a phone including connection state and screen dimensions.',
+    annotations: {
+      title: 'Get phone status',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {
@@ -446,7 +551,29 @@ export const toolDefinitions = [
   // },
 ];
 
-type ToolResult = { content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> };
+type ToolResult = {
+  content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+  isError?: boolean;
+  _meta?: Record<string, unknown>;
+};
+
+function toolError(error: TapKitAPIError): ToolResult {
+  const result: ToolResult = {
+    content: [{ type: 'text', text: `Error: ${error.toUserMessage()}` }],
+    isError: true,
+  };
+  if (error.status === 401
+    || ['INVALID_API_KEY', 'INVALID_TOKEN', 'AUTH_REQUIRED'].includes(error.code)) {
+    result.content = [{
+      type: 'text',
+      text: 'Your TapKit connection needs to be renewed. Reconnect TapKit and try again.',
+    }];
+    result._meta = {
+      'mcp/www_authenticate': [bearerChallenge('invalid')],
+    };
+  }
+  return result;
+}
 
 /**
  * Inner tool execution — dispatches to the correct handler.
@@ -473,7 +600,6 @@ async function executeToolInner(
         const name = p.display_name || p.name;
         const status = p.connection_status.toUpperCase();
         let line = `- ${name} [${status}] (ID: ${p.id})`;
-        if (p.connected_mac_id) line += ` (Mac: ${p.connected_mac_id})`;
         if (p.width && p.height) line += ` ${p.width}x${p.height}`;
         return line;
       }).join('\n');
@@ -784,24 +910,23 @@ export async function executeTool(
           return await executeToolInner(client, toolName, args);
         } catch (retryError) {
           if (retryError instanceof TapKitAPIError) {
-            return { content: [{ type: 'text', text: `Error: ${retryError.toUserMessage()}` }] };
+            return toolError(retryError);
           }
           throw retryError;
         }
       }
     }
     if (error instanceof TapKitAPIError) {
-      return {
-        content: [{ type: 'text', text: `Error: ${error.toUserMessage()}` }]
-      };
+      return toolError(error);
     }
-    // Log and return non-TapKit errors with full details
-    console.error('Tool execution error:', error);
-    const errorMessage = error instanceof Error
-      ? `${error.name}: ${error.message}`
-      : String(error);
+    const errorId = crypto.randomUUID();
+    console.error(`TapKit tool execution failed (${errorId})`);
     return {
-      content: [{ type: 'text', text: `Error: ${errorMessage}` }]
+      content: [{
+        type: 'text',
+        text: `TapKit could not complete this action. Try again, or contact support with error ID ${errorId}.`,
+      }],
+      isError: true,
     };
   }
 }
