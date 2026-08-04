@@ -280,12 +280,14 @@ test('Supabase login uses its PKCE flow without putting sessions in browser URLs
     }
     return new Response(JSON.stringify({
       access_token: 'supabase-access-token-long-enough',
-      refresh_token: 'supabase-refresh-token-long-enough',
+      // Supabase Auth still supports legacy refresh tokens that are exactly 12 characters.
+      refresh_token: 'abc123def456',
       expires_in: 3600,
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
   const exchanged = await exchangeSupabaseAuthorizationCode('auth-code', 'pkce-verifier', cfg, fakeFetch);
   assert.equal(exchanged.userId, '11111111-1111-4111-8111-111111111111');
+  assert.equal(exchanged.refreshToken, 'abc123def456');
   assert.deepEqual(requests[0].body, { auth_code: 'auth-code', code_verifier: 'pkce-verifier' });
   assert.equal(requests[0].authorization, 'Bearer anon-test-key');
   assert.equal(requests[1].authorization, 'Bearer supabase-access-token-long-enough');

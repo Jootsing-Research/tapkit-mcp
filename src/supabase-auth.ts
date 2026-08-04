@@ -51,9 +51,12 @@ function sessionPayload(body: Record<string, unknown>): {
   return { payload: body, envelope: 'unknown' };
 }
 
-function credentialFieldShape(value: unknown): SupabaseCredentialResponseShape['access_token'] {
+function credentialFieldShape(
+  value: unknown,
+  minimumLength: number
+): SupabaseCredentialResponseShape['access_token'] {
   if (typeof value !== 'string') return 'missing_or_other';
-  return value.length >= 20 ? 'valid_string' : 'short_string';
+  return value.length >= minimumLength ? 'valid_string' : 'short_string';
 }
 
 export interface SupabaseSession {
@@ -174,7 +177,7 @@ async function parseSession(
   const accessToken = selected.payload.access_token;
   const refreshToken = selected.payload.refresh_token;
   if (typeof accessToken !== 'string' || accessToken.length < 20
-    || typeof refreshToken !== 'string' || refreshToken.length < 20) {
+    || typeof refreshToken !== 'string' || refreshToken.length < 12) {
     throw new SupabaseAuthError(
       'The identity provider returned incomplete credentials',
       502,
@@ -183,8 +186,8 @@ async function parseSession(
       operation,
       {
         envelope: selected.envelope,
-        access_token: credentialFieldShape(accessToken),
-        refresh_token: credentialFieldShape(refreshToken),
+        access_token: credentialFieldShape(accessToken, 20),
+        refresh_token: credentialFieldShape(refreshToken, 12),
       }
     );
   }
