@@ -15,19 +15,19 @@
 
 ## Full-view comparison
 
-The rendered page preserves the source composition: fixed TapKit lockup, centered 572 px white card, restrained border and shadow, large app icon, centered heading/subtitle, divided permission rows, safety boundary, request origin, black primary action, outlined secondary action, and legal links. The shorter card and upward permission flow are intentional consequences of the requested identity-row removal. Dynamic request-origin text reflects the actual registered callback host rather than hard-coded mock content.
+The rendered page uses a fixed TapKit lockup and a compact centered 500 px white card with a restrained border and shadow, app icon, centered heading/subtitle, two emoji-led permission rows, request origin, black primary action, outlined secondary action, and legal links. Dynamic request-origin text reflects the actual registered callback host rather than hard-coded mock content.
 
 ## Focused comparison
 
-The focused card evidence was used to inspect typography, dividers, icon scale, permission-row rhythm, safety-copy wrapping, button sizing, radii, and legal-link spacing. Important details are readable at this crop, so no additional region crop was required.
+The focused card evidence was used to inspect typography, dividers, emoji scale, permission-row rhythm, button sizing, radii, and legal-link spacing. Important details are readable at this crop, so no additional region crop was required.
 
 ## Required fidelity surfaces
 
 - Fonts and typography: hierarchy, weight, line height, wrapping, and letter spacing match the source closely. The implementation intentionally uses a secure system-font stack rather than adding a remote font dependency; this is an acceptable P3-level difference from the Inter-like mock.
-- Spacing and layout rhythm: 572 px desktop card, 40 px horizontal padding, 112 px app icon, 74 px permission rows, 58 px actions, dividers, radii, and centered vertical composition match the source. The removed identity row is intentional.
+- Spacing and layout rhythm: the compact 500 px desktop card uses 32 px horizontal padding, a 72 px app icon, 56 px permission rows, 48 px actions, and reduced section gaps. The card now occupies only the space needed by its contents.
 - Colors and visual tokens: `#fafafa` page, white card, `#111` text, `#666` secondary copy, `#e5e5e5` borders, `#007aff` accents, and black primary CTA are consistent with the existing TapKit auth surface and selected mock.
-- Image quality and asset fidelity: the page uses TapKit's existing 180 × 180 app-icon asset at native or smaller display sizes. Permission and safety icons use static Lucide library assets; no placeholder, CSS-drawn, or improvised logo assets remain.
-- Copy and content: all requested capability, safety, origin, action, legal, and support copy is present. Account identity copy is absent as requested. Client name and callback host remain escaped dynamic values.
+- Image quality and asset fidelity: the page uses TapKit's existing 180 × 180 app-icon asset at a smaller display size. Permission rows use native eye and pointing-finger emoji.
+- Copy and content: both requested capabilities, origin, action, legal, and support copy are present. The former checkout safety row and account identity copy are absent. Client name and callback host remain escaped dynamic values.
 
 ## Interaction and responsive checks
 
@@ -40,6 +40,7 @@ The focused card evidence was used to inspect typography, dividers, icon scale, 
 ## Comparison history
 
 - Pass 1: no actionable P0, P1, or P2 mismatch found. No visual fixes were required after the first browser comparison.
+- Pass 2: condensed the card from 572 × 917 px to 500 × 604 px in the desktop render, removed the checkout safety row, and replaced the permission checks with emoji. No browser console errors or horizontal overflow were introduced.
 
 ## Findings
 

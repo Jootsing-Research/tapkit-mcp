@@ -436,12 +436,15 @@ test('browser authorization is cookie-bound, explicitly consented, and redirects
   assert.ok(renderedNonce);
   assert.match(callbackCsp, new RegExp(`style-src 'nonce-${renderedNonce}'`));
   assert.match(consentHtml, /<title>Connect Browser test client to TapKit<\/title>/);
-  assert.match(consentHtml, /<h1 id="consent-title">Connect Browser test client to TapKit<\/h1>/);
+  assert.match(consentHtml, /<h1 id="consent-title">Connect Browser test client to Tapkit<\/h1>/);
   assert.match(consentHtml, /Allow Browser test client to access your connected iPhones/);
   assert.match(consentHtml, /Browser test client will be able to:/);
+  assert.match(consentHtml, /👀/);
   assert.match(consentHtml, /View connected iPhone screens/);
-  assert.match(consentHtml, /Control connected iPhones through TapKit/);
-  assert.match(consentHtml, /cannot be used to make purchases, payments/);
+  assert.match(consentHtml, /👉/);
+  assert.match(consentHtml, /Interact with the connected iPhones/);
+  assert.equal(consentHtml.includes('/icons/check.svg'), false);
+  assert.equal(consentHtml.includes('cannot be used to make purchases, payments'), false);
   assert.match(consentHtml, /Requested by <strong>127\.0\.0\.1:50669<\/strong>/);
   assert.match(consentHtml, /src="\/tapkit-app-icon\.png"/);
   assert.match(consentHtml, /<form class="actions" method="post" action="\/oauth\/consent">/);

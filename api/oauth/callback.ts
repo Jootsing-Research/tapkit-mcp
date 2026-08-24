@@ -96,7 +96,6 @@ const CONSENT_PAGE_STYLES = `
     --surface: #ffffff;
     --text: #111111;
     --muted: #666666;
-    --muted-light: #858585;
     --border: #e5e5e5;
     --border-strong: #cfcfcf;
     --accent: #007aff;
@@ -159,15 +158,15 @@ const CONSENT_PAGE_STYLES = `
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 104px 24px 56px;
+    padding: 88px 20px 36px;
   }
 
   .consent-card {
-    width: min(100%, 572px);
-    padding: 48px 40px 38px;
+    width: min(100%, 500px);
+    padding: 32px 32px 28px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: 14px;
     box-shadow: 0 2px 6px rgba(17, 24, 39, 0.04), 0 14px 36px rgba(17, 24, 39, 0.06);
   }
 
@@ -177,80 +176,63 @@ const CONSENT_PAGE_STYLES = `
 
   .app-icon {
     display: block;
-    width: 112px;
-    height: 112px;
-    margin: 0 auto 30px;
-    border-radius: 25px;
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 20px;
+    border-radius: 16px;
   }
 
   h1 {
     margin: 0;
     color: #050505;
-    font-size: clamp(30px, 4vw, 36px);
+    font-size: clamp(27px, 4vw, 30px);
     font-weight: 700;
-    line-height: 1.13;
-    letter-spacing: -1.25px;
+    line-height: 1.15;
+    letter-spacing: -0.9px;
   }
 
   .subtitle {
-    margin: 14px 0 0;
+    margin: 10px 0 0;
     color: var(--muted);
-    font-size: 19px;
-    line-height: 1.45;
-    letter-spacing: -0.15px;
+    font-size: 16px;
+    line-height: 1.4;
   }
 
   .permissions {
-    margin-top: 34px;
+    margin-top: 24px;
     border-top: 1px solid var(--border);
   }
 
   .permissions h2 {
-    margin: 30px 0 12px;
-    font-size: 18px;
+    margin: 22px 0 8px;
+    font-size: 16px;
     font-weight: 700;
     line-height: 1.35;
-    letter-spacing: -0.2px;
-  }
-
-  .permission-row,
-  .safety-row {
-    display: grid;
-    grid-template-columns: 32px minmax(0, 1fr);
-    align-items: center;
-    column-gap: 20px;
-    min-height: 74px;
-    border-bottom: 1px solid var(--border);
   }
 
   .permission-row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 14px;
+    min-height: 56px;
+    border-bottom: 1px solid var(--border);
     color: #1b1b1b;
-    font-size: 17px;
-    line-height: 1.45;
-  }
-
-  .permission-row img {
-    width: 30px;
-    height: 30px;
-  }
-
-  .safety-row {
-    min-height: 102px;
-    color: var(--muted-light);
     font-size: 16px;
-    line-height: 1.5;
+    line-height: 1.35;
   }
 
-  .safety-row img {
-    width: 30px;
-    height: 30px;
+  .permission-icon {
+    font-size: 22px;
+    line-height: 1;
+    text-align: center;
   }
 
   .request-origin {
-    margin: 26px 0 24px;
+    margin: 18px 0;
     color: var(--muted);
     text-align: center;
-    font-size: 16px;
+    font-size: 14px;
     line-height: 1.4;
   }
 
@@ -260,16 +242,16 @@ const CONSENT_PAGE_STYLES = `
 
   .actions {
     display: grid;
-    gap: 14px;
+    gap: 10px;
   }
 
   .button {
     width: 100%;
-    min-height: 58px;
-    padding: 14px 24px;
-    border-radius: 10px;
+    min-height: 48px;
+    padding: 11px 20px;
+    border-radius: 9px;
     cursor: pointer;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.2;
     transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
@@ -314,9 +296,9 @@ const CONSENT_PAGE_STYLES = `
     justify-content: center;
     flex-wrap: wrap;
     gap: 10px;
-    margin: 34px 0 0;
+    margin: 20px 0 0;
     color: var(--muted);
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .legal a {
@@ -337,40 +319,30 @@ const CONSENT_PAGE_STYLES = `
 
     .page {
       align-items: flex-start;
-      padding: 84px 14px 20px;
+      padding: 76px 12px 16px;
     }
 
     .consent-card {
-      padding: 36px 24px 30px;
-      border-radius: 14px;
+      padding: 28px 22px 24px;
+      border-radius: 12px;
     }
 
     .app-icon {
-      width: 88px;
-      height: 88px;
-      margin-bottom: 24px;
-      border-radius: 20px;
+      width: 64px;
+      height: 64px;
+      margin-bottom: 18px;
+      border-radius: 14px;
     }
 
     h1 {
-      font-size: 29px;
+      font-size: 26px;
     }
 
     .subtitle {
-      font-size: 17px;
-    }
-
-    .permission-row,
-    .safety-row {
-      grid-template-columns: 28px minmax(0, 1fr);
-      column-gap: 14px;
+      font-size: 15px;
     }
 
     .permission-row {
-      font-size: 16px;
-    }
-
-    .safety-row {
       font-size: 15px;
     }
   }
@@ -416,24 +388,20 @@ function consentPage(
     <main class="page">
       <section class="consent-card" aria-labelledby="consent-title">
         <header class="consent-card__header">
-          <img class="app-icon" src="/tapkit-app-icon.png" alt="TapKit app icon" width="112" height="112">
-          <h1 id="consent-title">Connect ${safeClientName} to TapKit</h1>
+          <img class="app-icon" src="/tapkit-app-icon.png" alt="TapKit app icon" width="72" height="72">
+          <h1 id="consent-title">Connect ${safeClientName} to Tapkit</h1>
           <p class="subtitle">Allow ${safeClientName} to access your connected iPhones</p>
         </header>
 
         <div class="permissions">
           <h2>${safeClientName} will be able to:</h2>
           <div class="permission-row">
-            <img src="/icons/check.svg" alt="" width="30" height="30" aria-hidden="true">
+            <span class="permission-icon" aria-hidden="true">👀</span>
             <span>View connected iPhone screens</span>
           </div>
           <div class="permission-row">
-            <img src="/icons/check.svg" alt="" width="30" height="30" aria-hidden="true">
-            <span>Control connected iPhones through TapKit</span>
-          </div>
-          <div class="safety-row">
-            <img src="/icons/shield.svg" alt="" width="30" height="30" aria-hidden="true">
-            <span>TapKit cannot be used to make purchases, payments, or complete third-party checkout.</span>
+            <span class="permission-icon" aria-hidden="true">👉</span>
+            <span>Interact with the connected iPhones</span>
           </div>
         </div>
 
