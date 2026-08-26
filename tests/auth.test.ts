@@ -57,6 +57,14 @@ import {
 } from '../src/supabase-auth.js';
 
 const encryptionKey = Buffer.alloc(32, 7).toString('base64');
+const cursorDesktopRedirectUri = 'cursor://anysphere.cursor-mcp/oauth/callback';
+const cursorWebRedirectUri = 'https://www.cursor.com/agents/mcp/oauth/callback';
+const cursorLoopbackRedirectUri = 'http://localhost:8787/callback';
+const cursorRedirectUris = [
+  cursorDesktopRedirectUri,
+  cursorWebRedirectUri,
+  cursorLoopbackRedirectUri,
+];
 
 function config(overrides: Partial<OAuthConfig> = {}): OAuthConfig {
   return {
@@ -152,6 +160,74 @@ test('PKCE, token hashing, encryption, and escaping use safe primitives', async 
   assert.equal(escapeHtml(`<a href='x'>&"`), '&lt;a href=&#039;x&#039;&gt;&amp;&quot;');
 });
 
+test('Cursor redirect URI sets are accepted without weakening redirect safety', async () => {
+  const acceptedSets = [
+    [cursorWebRedirectUri],
+    [cursorLoopbackRedirectUri],
+    [cursorDesktopRedirectUri],
+    cursorRedirectUris,
+  ];
+  const store = new OAuthRepository(async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify([body]), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }, config());
+  for (const redirectUris of acceptedSets) {
+    const client = validateClientRegistration({ redirect_uris: redirectUris }, 'cursor-client');
+    assert.deepEqual(client.redirect_uris, redirectUris);
+    assert.equal(client.token_endpoint_auth_method, 'none');
+    assert.deepEqual(client.grant_types, ['authorization_code', 'refresh_token']);
+    assert.deepEqual(client.response_types, ['code']);
+
+    const response = await handleRegistration(new Request(
+      'https://mcp.tapkit.ai/oauth/register',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redirect_uris: redirectUris }),
+      }
+    ), store);
+    assert.equal(response.status, 201, redirectUris.join(', '));
+    const registered = await response.json();
+    assert.deepEqual(registered.redirect_uris, redirectUris);
+  }
+
+  for (const redirectUri of [
+    cursorDesktopRedirectUri,
+    'cursor-nightly://anysphere.cursor-mcp/oauth/callback',
+    cursorWebRedirectUri,
+    cursorLoopbackRedirectUri,
+    'https://evil.com',
+  ]) {
+    assert.equal(isSafeRedirectUri(redirectUri), true, redirectUri);
+  }
+
+  for (const redirectUri of [
+    'http://example.com',
+    'cursor://user:pass@host',
+    'cursor://host#frag',
+    'cursor://user:pass@anysphere.cursor-mcp/oauth/callback',
+    'cursor://anysphere.cursor-mcp/oauth/callback#frag',
+    'cursor://anysphere.cursor-mcp:8787/oauth/callback',
+    'cursor://anysphere.cursor-mcp/not-the-callback',
+    'cursor://anysphere.cursor-mcp/oauth/callback?',
+    'cursor://anysphere.cursor-mcp/oauth/./callback',
+    'cursor-dev://anysphere.cursor-mcp/oauth/callback',
+    'https://user:pass@example.com/callback',
+    'https://example.com/callback#fragment',
+    'https://example.com/callback#',
+  ]) {
+    assert.equal(isSafeRedirectUri(redirectUri), false, redirectUri);
+    assert.throws(
+      () => validateClientRegistration({ redirect_uris: [redirectUri] }, 'unsafe-client'),
+      ClientMetadataError,
+      redirectUri
+    );
+  }
+});
+
 test('dynamic registration rejects unsafe metadata and returns a public client', async () => {
   assert.equal(isSafeRedirectUri('https://chatgpt.com/connector/callback?x=1'), true);
   assert.equal(isSafeRedirectUri('http://127.0.0.1:4812/callback'), true);
@@ -180,7 +256,7 @@ test('dynamic registration rejects unsafe metadata and returns a public client',
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      redirect_uris: ['https://chatgpt.com/connector/callback'],
+      redirect_uris: cursorRedirectUris,
       client_name: '<TapKit test>',
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
@@ -191,6 +267,10 @@ test('dynamic registration rejects unsafe metadata and returns a public client',
   const body = await response.json();
   assert.equal(OAuthClientInformationFullSchema.safeParse(body).success, true);
   assert.match(body.client_id, /^mcp_client_/);
+  assert.deepEqual(body.redirect_uris, cursorRedirectUris);
+  assert.deepEqual(body.grant_types, ['authorization_code', 'refresh_token']);
+  assert.deepEqual(body.response_types, ['code']);
+  assert.equal(body.token_endpoint_auth_method, 'none');
   assert.equal('client_secret' in body, false);
   assert.equal('scope' in body, false);
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
@@ -489,6 +569,100 @@ test('browser authorization is cookie-bound, explicitly consented, and redirects
   assert.equal(approvals[0].transactionHash, await hashToken(transaction));
   assert.equal(approvals[0].consentTokenHash, await hashToken(consentToken));
   assert.equal(approvals[0].codeHash, await hashToken(authorizationCode));
+});
+
+test('Cursor custom-scheme authorization renders consent and redirects back to Cursor', async () => {
+  const cfg = config();
+  const transaction = `mcp_tx_${'c'.repeat(43)}`;
+  const authorization = {
+    transaction_hash: await hashToken(transaction),
+    client_id: 'cursor-client',
+    redirect_uri: cursorDesktopRedirectUri,
+    client_state: 'cursor-state',
+    resource: cfg.resource,
+    requested_scope: '',
+    code_challenge: 'p'.repeat(43),
+    code_challenge_method: 'S256' as const,
+    upstream_pkce_verifier_ciphertext: await encryptSecret('upstream-verifier', encryptionKey),
+    status: 'pending_login' as const,
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+  };
+  let persistedConsentTokenHash = '';
+  const callbackStore = {
+    getAuthorizationByTransactionHash: async () => authorization,
+    completeLogin: async (_transactionHash: string, patch: Record<string, unknown>) => {
+      persistedConsentTokenHash = String(patch.consent_token_hash);
+      return { ...authorization, ...patch, status: 'awaiting_consent' };
+    },
+    getClient: async () => ({
+      client_id: 'cursor-client',
+      redirect_uris: [cursorDesktopRedirectUri],
+      client_name: 'Cursor',
+      client_uri: null,
+      logo_uri: null,
+      token_endpoint_auth_method: 'none',
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+    }),
+    failAuthorization: async () => undefined,
+  } as unknown as OAuthRepository;
+  const upstreamFetch: typeof fetch = async input => {
+    if (String(input).endsWith('/auth/v1/user')) {
+      return new Response(JSON.stringify({ id: '44444444-4444-4444-8444-444444444444' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({
+      access_token: 'cursor-supabase-access-token-long-enough',
+      refresh_token: 'cursor-supabase-refresh-token-long-enough',
+      expires_in: 3600,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+
+  const callbackResponse = await handleCallback(new Request(
+    'https://mcp.tapkit.ai/oauth/callback?code=supabase-code',
+    { headers: { Cookie: `tapkit_oauth_tx=${transaction}` } }
+  ), callbackStore, cfg, upstreamFetch);
+  assert.equal(callbackResponse.status, 200);
+  const callbackCsp = callbackResponse.headers.get('Content-Security-Policy') || '';
+  assert.match(
+    callbackCsp,
+    /form-action 'self' cursor:\/\/anysphere\.cursor-mcp/
+  );
+  assert.equal(callbackCsp.includes('null'), false);
+  const consentHtml = await callbackResponse.text();
+  assert.match(consentHtml, /Requested by <strong>anysphere\.cursor-mcp<\/strong>/);
+  const consentToken = /name="consent_token" value="([^"]+)"/.exec(consentHtml)?.[1] || '';
+  assert.match(consentToken, /^mcp_consent_[A-Za-z0-9_-]{43}$/);
+  assert.equal(persistedConsentTokenHash, await hashToken(consentToken));
+
+  const consentStore = {
+    approveAuthorization: async () => ({
+      redirect_uri: cursorDesktopRedirectUri,
+      client_state: 'cursor-state',
+      resource: cfg.resource,
+    }),
+  } as unknown as OAuthRepository;
+  const consentResponse = await handleConsent(new Request(
+    'https://mcp.tapkit.ai/oauth/consent',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        transaction,
+        consent_token: consentToken,
+        decision: 'approve',
+      }),
+    }
+  ), consentStore, cfg);
+  assert.equal(consentResponse.status, 302);
+  const cursorCallback = new URL(consentResponse.headers.get('Location')!);
+  assert.equal(cursorCallback.protocol, 'cursor:');
+  assert.equal(cursorCallback.host, 'anysphere.cursor-mcp');
+  assert.equal(cursorCallback.pathname, '/oauth/callback');
+  assert.match(cursorCallback.searchParams.get('code') || '', /^mcp_code_[A-Za-z0-9_-]{43}$/);
+  assert.equal(cursorCallback.searchParams.get('state'), 'cursor-state');
 });
 
 test('OAuth callback logs only safe failure classification and a correlation ID', async () => {

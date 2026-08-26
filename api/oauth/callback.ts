@@ -12,6 +12,7 @@ import {
   exchangeSupabaseAuthorizationCode,
   SupabaseAuthError,
 } from '../../src/supabase-auth.js';
+import { isSafeRedirectUri } from '../../src/oauth-validation.js';
 
 export const runtime = 'edge';
 
@@ -66,11 +67,11 @@ function htmlResponse(
   html: string,
   status: number,
   config: OAuthConfig,
-  formRedirectOrigin?: string,
+  formRedirectSource?: string,
   styleNonce?: string
 ): Response {
-  const formAction = formRedirectOrigin
-    ? `'self' ${formRedirectOrigin}`
+  const formAction = formRedirectSource
+    ? `'self' ${formRedirectSource}`
     : "'self'";
   const stylePolicy = styleNonce
     ? `; style-src 'nonce-${styleNonce}'; img-src 'self'`
@@ -366,9 +367,12 @@ function consentPage(
   config: OAuthConfig
 ): Response {
   const redirect = new URL(redirectUri);
-  if (!['http:', 'https:'].includes(redirect.protocol)) {
+  if (!isSafeRedirectUri(redirectUri)) {
     throw new Error('Unsupported OAuth redirect URI');
   }
+  const formRedirectSource = ['http:', 'https:'].includes(redirect.protocol)
+    ? redirect.origin
+    : `${redirect.protocol}//${redirect.host}`;
   const styleNonce = randomToken('', 16);
   const safeClientName = escapeHtml(clientName);
   const safeRedirectHost = escapeHtml(redirect.host);
@@ -424,7 +428,7 @@ function consentPage(
       </section>
     </main>
   </body>
-</html>`, 200, config, redirect.origin, styleNonce);
+</html>`, 200, config, formRedirectSource, styleNonce);
 }
 
 export async function handleCallback(

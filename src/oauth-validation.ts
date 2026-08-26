@@ -39,12 +39,22 @@ function isLoopback(hostname: string): boolean {
     || hostname === '[::1]';
 }
 
+function isCursorRedirectUri(value: string, url: URL): boolean {
+  return /^cursor(?:-nightly)?:$/.test(url.protocol)
+    && url.host === 'anysphere.cursor-mcp'
+    && url.pathname === '/oauth/callback'
+    && url.search === ''
+    && !value.includes('?')
+    && value === url.href;
+}
+
 export function isSafeRedirectUri(value: string): boolean {
   try {
     const url = new URL(value);
-    if (url.username || url.password || url.hash) return false;
+    if (url.username || url.password || value.includes('#')) return false;
     if (url.protocol === 'https:') return true;
-    return url.protocol === 'http:' && isLoopback(url.hostname);
+    if (url.protocol === 'http:') return isLoopback(url.hostname);
+    return isCursorRedirectUri(value, url);
   } catch {
     return false;
   }
@@ -86,7 +96,9 @@ export function validateClientRegistration(
     throw new ClientMetadataError('redirect_uris must not contain duplicates');
   }
   if (redirectUris.some(uri => uri.length > 2048 || !isSafeRedirectUri(uri))) {
-    throw new ClientMetadataError('Each redirect URI must use HTTPS (or loopback HTTP) and must not contain credentials or a fragment');
+    throw new ClientMetadataError(
+      'Each redirect URI must use HTTPS, loopback HTTP, or an approved native-app callback and must not contain credentials or a fragment'
+    );
   }
 
   if (metadata.scope !== undefined && metadata.scope !== '') {
