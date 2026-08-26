@@ -3,7 +3,7 @@
  */
 
 import sharp from 'sharp';
-import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE, type PhoneStatus, type PinchAction, type ConsumeMode } from './tapkit-client.js';
+import { TapKitClient, TapKitAPIError, MAX_LONG_EDGE, type PhoneStatus, type PinchAction, type ConsumeMode, type KeypressKey, type KeypressModifier, type DragSpeed } from './tapkit-client.js';
 import { bearerChallenge } from './mcp-auth.js';
 
 // Tool input schemas (JSON Schema format)
@@ -80,7 +80,7 @@ export const toolDefinitions = [
   {
     name: 'type_text',
     title: 'Type text',
-    description: 'Type text into the currently focused text field through the TapKit type API. Make sure a text field is active first (tap it if needed).',
+    description: 'Type ASCII text into the currently focused text field through the TapKit type API. Unicode is not supported. Make sure a text field is active first (tap it if needed).',
     annotations: {
       title: 'Type text',
       readOnlyHint: false,
@@ -97,7 +97,7 @@ export const toolDefinitions = [
         },
         text: {
           type: 'string',
-          description: 'The text to type'
+          description: 'ASCII text to type. Unicode characters are not supported.'
         }
       },
       required: ['phone_id', 'text']
@@ -123,6 +123,47 @@ export const toolDefinitions = [
         }
       },
       required: ['phone_id']
+    }
+  },
+  {
+    name: 'press_key',
+    title: 'Press keyboard key',
+    description: 'Press enter, escape, backspace, or an arrow key on the active iPhone, optionally holding modifier keys.',
+    annotations: {
+      title: 'Press keyboard key',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+        },
+        key: {
+          type: 'string',
+          enum: ['enter', 'escape', 'backspace', 'arrow_up', 'arrow_down', 'arrow_left', 'arrow_right'],
+          description: 'Keyboard key to press'
+        },
+        modifiers: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['control', 'shift', 'alternate', 'command']
+          },
+          description: 'Modifier keys to hold while pressing the key'
+        },
+        repeat: {
+          type: 'integer',
+          minimum: 1,
+          default: 1,
+          description: 'Number of times to press the key'
+        }
+      },
+      required: ['phone_id', 'key']
     }
   },
   {
@@ -181,7 +222,12 @@ export const toolDefinitions = [
         from_x: { type: 'number', description: 'Starting X coordinate' },
         from_y: { type: 'number', description: 'Starting Y coordinate' },
         to_x: { type: 'number', description: 'Ending X coordinate' },
-        to_y: { type: 'number', description: 'Ending Y coordinate' }
+        to_y: { type: 'number', description: 'Ending Y coordinate' },
+        speed: {
+          type: 'string',
+          enum: ['slow', 'medium', 'fast'],
+          description: 'Drag speed (default: medium)'
+        }
       },
       required: ['phone_id', 'from_x', 'from_y', 'to_x', 'to_y']
     }
@@ -208,7 +254,12 @@ export const toolDefinitions = [
         from_y: { type: 'number', description: 'Starting Y coordinate' },
         to_x: { type: 'number', description: 'Ending X coordinate' },
         to_y: { type: 'number', description: 'Ending Y coordinate' },
-        hold_duration_ms: { type: 'number', description: 'How long to hold before dragging in ms (default: 500)' }
+        hold_duration_ms: { type: 'number', description: 'How long to hold before dragging in ms (default: 500)' },
+        speed: {
+          type: 'string',
+          enum: ['slow', 'medium', 'fast'],
+          description: 'Drag speed (default: medium)'
+        }
       },
       required: ['phone_id', 'from_x', 'from_y', 'to_x', 'to_y']
     }
@@ -270,6 +321,30 @@ export const toolDefinitions = [
           type: 'number',
           description: 'Y coordinate'
         }
+      },
+      required: ['phone_id', 'x', 'y']
+    }
+  },
+  {
+    name: 'triple_tap',
+    title: 'Triple tap screen',
+    description: 'Triple tap at specific coordinates.',
+    annotations: {
+      title: 'Triple tap screen',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phone_id: {
+          type: 'string',
+          description: 'Phone ID. Call list_phones first to discover available phone IDs.'
+        },
+        x: { type: 'number', description: 'X coordinate' },
+        y: { type: 'number', description: 'Y coordinate' }
       },
       required: ['phone_id', 'x', 'y']
     }
@@ -672,6 +747,20 @@ async function executeToolInner(
       };
     }
 
+    case 'press_key': {
+      const { phone_id, key, modifiers = [], repeat = 1 } = args as {
+        phone_id: string;
+        key: KeypressKey;
+        modifiers?: KeypressModifier[];
+        repeat?: number;
+      };
+      await client.pressKey(phone_id, key, modifiers, repeat);
+      const chord = modifiers.length > 0 ? `${modifiers.join('+')}+` : '';
+      return {
+        content: [{ type: 'text', text: `Pressed ${chord}${key} ${repeat} time${repeat === 1 ? '' : 's'}` }]
+      };
+    }
+
     case 'press_home': {
       const phoneId = args.phone_id as string;
       await client.pressHome(phoneId);
@@ -691,26 +780,26 @@ async function executeToolInner(
     }
 
     case 'drag': {
-      const { phone_id, from_x, from_y, to_x, to_y } = args as {
-        phone_id: string; from_x: number; from_y: number; to_x: number; to_y: number;
+      const { phone_id, from_x, from_y, to_x, to_y, speed } = args as {
+        phone_id: string; from_x: number; from_y: number; to_x: number; to_y: number; speed?: DragSpeed;
       };
       await client.ensureScaling(phone_id);
       const nFrom = client.toNative(phone_id, from_x, from_y);
       const nTo = client.toNative(phone_id, to_x, to_y);
-      await client.drag(phone_id, nFrom.x, nFrom.y, nTo.x, nTo.y);
+      await client.drag(phone_id, nFrom.x, nFrom.y, nTo.x, nTo.y, speed);
       return {
         content: [{ type: 'text', text: `Dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
       };
     }
 
     case 'hold_and_drag': {
-      const { phone_id, from_x, from_y, to_x, to_y, hold_duration_ms } = args as {
-        phone_id: string; from_x: number; from_y: number; to_x: number; to_y: number; hold_duration_ms?: number;
+      const { phone_id, from_x, from_y, to_x, to_y, hold_duration_ms, speed } = args as {
+        phone_id: string; from_x: number; from_y: number; to_x: number; to_y: number; hold_duration_ms?: number; speed?: DragSpeed;
       };
       await client.ensureScaling(phone_id);
       const nFrom = client.toNative(phone_id, from_x, from_y);
       const nTo = client.toNative(phone_id, to_x, to_y);
-      await client.holdAndDrag(phone_id, nFrom.x, nFrom.y, nTo.x, nTo.y, hold_duration_ms);
+      await client.holdAndDrag(phone_id, nFrom.x, nFrom.y, nTo.x, nTo.y, hold_duration_ms, speed);
       return {
         content: [{ type: 'text', text: `Hold and dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
       };
@@ -736,6 +825,16 @@ async function executeToolInner(
       await client.doubleTap(phone_id, native.x, native.y);
       return {
         content: [{ type: 'text', text: `Double tapped at (${x}, ${y})` }]
+      };
+    }
+
+    case 'triple_tap': {
+      const { phone_id, x, y } = args as { phone_id: string; x: number; y: number };
+      await client.ensureScaling(phone_id);
+      const native = client.toNative(phone_id, x, y);
+      await client.tripleTap(phone_id, native.x, native.y);
+      return {
+        content: [{ type: 'text', text: `Triple tapped at (${x}, ${y})` }]
       };
     }
 

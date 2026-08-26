@@ -55,6 +55,9 @@ export interface OpenUrlResult {
 }
 
 export type PinchAction = 'pinch_in' | 'pinch_out' | 'rotate_cw' | 'rotate_ccw';
+export type DragSpeed = 'slow' | 'medium' | 'fast';
+export type KeypressKey = 'enter' | 'escape' | 'backspace' | 'arrow_up' | 'arrow_down' | 'arrow_left' | 'arrow_right';
+export type KeypressModifier = 'control' | 'shift' | 'alternate' | 'command';
 
 export interface PinchResult {
   id: string;
@@ -271,6 +274,10 @@ export class TapKitClient {
     return this.request<TapResult>('POST', `/phones/${phoneId}/double-tap`, { x, y });
   }
 
+  async tripleTap(phoneId: string, x: number, y: number): Promise<TapResult> {
+    return this.request<TapResult>('POST', `/phones/${phoneId}/triple-tap`, { x, y });
+  }
+
   /**
    * Long press at coordinates
    */
@@ -294,18 +301,18 @@ export class TapKitClient {
   /**
    * Drag from one point to another
    */
-  async drag(phoneId: string, fromX: number, fromY: number, toX: number, toY: number): Promise<TapResult> {
+  async drag(phoneId: string, fromX: number, fromY: number, toX: number, toY: number, speed: DragSpeed = 'medium'): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/drag`, {
-      from_x: fromX, from_y: fromY, to_x: toX, to_y: toY
+      from_x: fromX, from_y: fromY, to_x: toX, to_y: toY, speed
     });
   }
 
   /**
    * Long press then drag to another point
    */
-  async holdAndDrag(phoneId: string, fromX: number, fromY: number, toX: number, toY: number, holdDurationMs?: number): Promise<TapResult> {
+  async holdAndDrag(phoneId: string, fromX: number, fromY: number, toX: number, toY: number, holdDurationMs?: number, speed: DragSpeed = 'medium'): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/hold-and-drag`, {
-      from_x: fromX, from_y: fromY, to_x: toX, to_y: toY, hold_duration_ms: holdDurationMs || 500
+      from_x: fromX, from_y: fromY, to_x: toX, to_y: toY, hold_duration_ms: holdDurationMs || 500, speed
     });
   }
 
@@ -326,6 +333,15 @@ export class TapKitClient {
    */
   async typeText(phoneId: string, text: string): Promise<TapResult> {
     return this.request<TapResult>('POST', `/phones/${phoneId}/type`, { text });
+  }
+
+  async pressKey(
+    phoneId: string,
+    key: KeypressKey,
+    modifiers: KeypressModifier[] = [],
+    repeat: number = 1
+  ): Promise<TapResult> {
+    return this.request<TapResult>('POST', `/phones/${phoneId}/keypress`, { key, modifiers, repeat });
   }
 
   /**
