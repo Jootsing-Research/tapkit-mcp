@@ -615,7 +615,7 @@ async function executeToolInner(
 
       let reportW: number;
       let reportH: number;
-      let pipeline: sharp.Sharp;
+      let pipeline: ReturnType<typeof sharp>;
 
       if (scaling) {
         pipeline = sharp(imageBuffer)
