@@ -80,7 +80,7 @@ export const toolDefinitions = [
   {
     name: 'type_text',
     title: 'Type text',
-    description: 'Type ASCII text into the currently focused text field through the TapKit type API. Unicode is not supported. Make sure a text field is active first (tap it if needed).',
+    description: 'Type text into the currently focused text field through the TapKit type API. Only US-ASCII text of at most 100 characters is supported; Unicode characters are rejected. Make sure a text field is active first (tap it if needed).',
     annotations: {
       title: 'Type text',
       readOnlyHint: false,
@@ -97,7 +97,7 @@ export const toolDefinitions = [
         },
         text: {
           type: 'string',
-          description: 'ASCII text to type. Unicode characters are not supported.'
+          description: 'US-ASCII text to type, at most 100 characters. Unicode characters are not supported.'
         }
       },
       required: ['phone_id', 'text']

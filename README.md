@@ -79,7 +79,7 @@ All phone-targeting tools require a `phone_id` parameter. Call `list_phones` fir
 | Tool | Description |
 |------|-------------|
 | `press_home` | Press the home button |
-| `type_text` | Type ASCII text into the active text field; Unicode is unsupported |
+| `type_text` | Type US-ASCII text (max 100 characters) into the active text field; Unicode is unsupported |
 | `press_key` | Press enter, escape, backspace, or an arrow key, optionally holding control/shift/alternate/command |
 
 ### Hardware

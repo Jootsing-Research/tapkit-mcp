@@ -332,7 +332,14 @@ export class TapKitClient {
    * Type text into active field
    */
   async typeText(phoneId: string, text: string): Promise<TapResult> {
-    return this.request<TapResult>('POST', `/phones/${phoneId}/type`, { text });
+    const job = await this.request<TapResult & {
+      status?: 'pending' | 'running' | 'completed' | 'failed';
+      result?: { error?: string } | null;
+    }>('POST', `/phones/${phoneId}/type`, { text });
+    if (job.status === 'failed') {
+      throw new TapKitAPIError(0, 'JOB_FAILED', job.result?.error ?? 'Typing failed on the phone.');
+    }
+    return job;
   }
 
   async pressKey(
@@ -467,6 +474,8 @@ export class TapKitAPIError extends Error {
 
   toUserMessage(): string {
     switch (this.code) {
+      case 'JOB_FAILED':
+        return this.message;
       case 'NO_PHONES_CONNECTED':
         return 'No phones connected. Please ensure TapKit is running and a phone is connected.';
       case 'NO_PHONE_SELECTED':
