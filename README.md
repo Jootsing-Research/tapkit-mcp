@@ -68,17 +68,19 @@ All phone-targeting tools require a `phone_id` parameter. Call `list_phones` fir
 |------|-------------|
 | `tap` | Tap at (x, y) coordinates |
 | `double_tap` | Double tap at (x, y) -- for zooming or text selection |
+| `triple_tap` | Triple tap at (x, y) |
 | `long_press` | Long press at (x, y) -- for context menus (default 1000ms) |
 | `swipe` | Fast flick gesture in a direction (up/down/left/right) |
-| `drag` | Drag from one point to another -- for sliders, precise scrolling |
-| `hold_and_drag` | Long press then drag -- for reordering lists, drag-and-drop |
+| `drag` | Drag from one point to another -- for sliders, precise scrolling (optional speed: slow/medium/fast) |
+| `hold_and_drag` | Long press then drag -- for reordering lists, drag-and-drop (optional hold duration and speed: slow/medium/fast) |
 
 ### Navigation & Input
 
 | Tool | Description |
 |------|-------------|
 | `press_home` | Press the home button |
-| `type_text` | Type text into the active text field |
+| `type_text` | Type US-ASCII text (max 100 characters) into the active text field; Unicode is unsupported |
+| `press_key` | Press enter, escape, backspace, or an arrow key, optionally holding control/shift/alternate/command |
 
 ### Hardware
 
