@@ -54,6 +54,8 @@ Then connect TapKit via the MCP server or CLI. See the [skills repo](https://git
 
 All phone-targeting tools require a `phone_id` parameter. Call `list_phones` first to discover available phones.
 
+All action tools (everything under Touch & Gestures and Navigation & Input, plus `unlock`) return a screenshot of the resulting screen after a short settle delay.
+
 ### Device
 
 | Tool | Description |

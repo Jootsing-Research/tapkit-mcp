@@ -28,7 +28,7 @@ export const toolDefinitions = [
   {
     name: 'screenshot',
     title: 'Take screenshot',
-    description: 'Take a screenshot of the iPhone screen. Returns the current screen state as an image. Use this to see what is on screen before and after actions.',
+    description: 'Take a screenshot of the iPhone screen. Returns the current screen state as an image. Action tools already return a screenshot, so only call this to see the screen without acting.',
     annotations: {
       title: 'Take screenshot',
       readOnlyHint: true,
@@ -50,7 +50,7 @@ export const toolDefinitions = [
   {
     name: 'tap',
     title: 'Tap screen',
-    description: 'Tap at specific x,y coordinates on the screen. Use screenshot first to identify the location.',
+    description: 'Tap at specific x,y coordinates on the screen. Returns a screenshot of the resulting screen.',
     annotations: {
       title: 'Tap screen',
       readOnlyHint: false,
@@ -80,7 +80,7 @@ export const toolDefinitions = [
   {
     name: 'type_text',
     title: 'Type text',
-    description: 'Type text into the currently focused text field through the TapKit type API. Make sure a text field is active first (tap it if needed).',
+    description: 'Type text into the currently focused text field through the TapKit type API. Make sure a text field is active first (tap it if needed). Returns a screenshot of the resulting screen.',
     annotations: {
       title: 'Type text',
       readOnlyHint: false,
@@ -106,7 +106,7 @@ export const toolDefinitions = [
   {
     name: 'press_home',
     title: 'Press Home',
-    description: 'Press the home button to go to the home screen or exit the current app.',
+    description: 'Press the home button to go to the home screen or exit the current app. Returns a screenshot of the resulting screen.',
     annotations: {
       title: 'Press Home',
       readOnlyHint: false,
@@ -128,7 +128,7 @@ export const toolDefinitions = [
   {
     name: 'swipe',
     title: 'Swipe screen',
-    description: 'Perform a fast flick/swipe gesture at a position. Useful for dismissing, switching pages, or quick scrolling.',
+    description: 'Perform a fast flick/swipe gesture at a position. Useful for dismissing, switching pages, or quick scrolling. Returns a screenshot of the resulting screen.',
     annotations: {
       title: 'Swipe screen',
       readOnlyHint: false,
@@ -163,7 +163,7 @@ export const toolDefinitions = [
   {
     name: 'drag',
     title: 'Drag on screen',
-    description: 'Drag from one point to another. Useful for moving sliders, reordering items, or precise scroll gestures.',
+    description: 'Drag from one point to another. Useful for moving sliders, reordering items, or precise scroll gestures. Returns a screenshot of the resulting screen.',
     annotations: {
       title: 'Drag on screen',
       readOnlyHint: false,
@@ -189,7 +189,7 @@ export const toolDefinitions = [
   {
     name: 'hold_and_drag',
     title: 'Hold and drag',
-    description: 'Long press then drag to another point. Useful for drag-and-drop, reordering lists, or moving items.',
+    description: 'Long press then drag to another point. Useful for drag-and-drop, reordering lists, or moving items. Returns a screenshot of the resulting screen.',
     annotations: {
       title: 'Hold and drag',
       readOnlyHint: false,
@@ -247,7 +247,7 @@ export const toolDefinitions = [
   {
     name: 'double_tap',
     title: 'Double tap screen',
-    description: 'Double tap at specific coordinates. Useful for zooming or selecting text.',
+    description: 'Double tap at specific coordinates. Useful for zooming or selecting text. Returns a screenshot of the resulting screen.',
     annotations: {
       title: 'Double tap screen',
       readOnlyHint: false,
@@ -277,7 +277,7 @@ export const toolDefinitions = [
   {
     name: 'long_press',
     title: 'Long press screen',
-    description: 'Long press (tap and hold) at specific coordinates. Useful for context menus or drag operations.',
+    description: 'Long press (tap and hold) at specific coordinates. Useful for context menus or drag operations. Returns a screenshot of the resulting screen.',
     annotations: {
       title: 'Long press screen',
       readOnlyHint: false,
@@ -333,7 +333,7 @@ export const toolDefinitions = [
   {
     name: 'unlock',
     title: 'Unlock phone',
-    description: 'Unlock the iPhone screen.',
+    description: 'Unlock the iPhone screen. Returns a screenshot of the resulting screen.',
     annotations: {
       title: 'Unlock phone',
       readOnlyHint: false,
@@ -576,6 +576,67 @@ function toolError(error: TapKitAPIError): ToolResult {
 }
 
 /**
+ * Give the phone a beat to finish animating after an action before screenshotting.
+ */
+const ACTION_SETTLE_MS = 500;
+
+interface CapturedScreenshot {
+  width: number;
+  height: number;
+  data: string; // base64 JPEG
+}
+
+async function captureScreenshot(client: TapKitClient, phoneId: string): Promise<CapturedScreenshot> {
+  const imageBuffer = await client.screenshot(phoneId);
+  let scaling = client.getScaling(phoneId);
+
+  let reportW: number;
+  let reportH: number;
+  let pipeline: ReturnType<typeof sharp>;
+
+  if (scaling) {
+    pipeline = sharp(imageBuffer)
+      .resize(scaling.scaledWidth, scaling.scaledHeight, { fit: 'inside' });
+    reportW = scaling.scaledWidth;
+    reportH = scaling.scaledHeight;
+  } else {
+    // No cached scaling — read native dims from PNG metadata and cache them
+    const meta = await sharp(imageBuffer).metadata();
+    const w = meta.width ?? 0;
+    const h = meta.height ?? 0;
+    if (w && h) {
+      scaling = client.cacheScaling(phoneId, w, h);
+      pipeline = sharp(imageBuffer)
+        .resize(scaling.scaledWidth, scaling.scaledHeight, { fit: 'inside' });
+      reportW = scaling.scaledWidth;
+      reportH = scaling.scaledHeight;
+    } else {
+      reportW = w;
+      reportH = h;
+      pipeline = sharp(imageBuffer);
+    }
+  }
+
+  const resizedBuffer = await pipeline.jpeg({ quality: 80 }).toBuffer();
+  return { width: reportW, height: reportH, data: resizedBuffer.toString('base64') };
+}
+
+/**
+ * Tool result for a phone action: confirmation text plus a screenshot of the
+ * resulting screen, taken after a short settle delay.
+ */
+async function actionResult(client: TapKitClient, phoneId: string, text: string): Promise<ToolResult> {
+  await new Promise(resolve => setTimeout(resolve, ACTION_SETTLE_MS));
+  const shot = await captureScreenshot(client, phoneId);
+  return {
+    content: [
+      { type: 'text', text },
+      { type: 'image', data: shot.data, mimeType: 'image/jpeg' }
+    ]
+  };
+}
+
+/**
  * Inner tool execution — dispatches to the correct handler.
  * Every phone-targeting tool reads its own phone_id from args.
  */
@@ -610,44 +671,13 @@ async function executeToolInner(
 
     case 'screenshot': {
       const phoneId = args.phone_id as string;
-      const imageBuffer = await client.screenshot(phoneId);
-      let scaling = client.getScaling(phoneId);
-
-      let reportW: number;
-      let reportH: number;
-      let pipeline: ReturnType<typeof sharp>;
-
-      if (scaling) {
-        pipeline = sharp(imageBuffer)
-          .resize(scaling.scaledWidth, scaling.scaledHeight, { fit: 'inside' });
-        reportW = scaling.scaledWidth;
-        reportH = scaling.scaledHeight;
-      } else {
-        // No cached scaling — read native dims from PNG metadata and cache them
-        const meta = await sharp(imageBuffer).metadata();
-        const w = meta.width ?? 0;
-        const h = meta.height ?? 0;
-        if (w && h) {
-          scaling = client.cacheScaling(phoneId, w, h);
-          pipeline = sharp(imageBuffer)
-            .resize(scaling.scaledWidth, scaling.scaledHeight, { fit: 'inside' });
-          reportW = scaling.scaledWidth;
-          reportH = scaling.scaledHeight;
-        } else {
-          reportW = w;
-          reportH = h;
-          pipeline = sharp(imageBuffer);
-        }
-      }
-
-      const resizedBuffer = await pipeline.jpeg({ quality: 80 }).toBuffer();
-      const base64 = resizedBuffer.toString('base64');
+      const shot = await captureScreenshot(client, phoneId);
       return {
         content: [
-          { type: 'text', text: `Screenshot: ${reportW}x${reportH}. Coordinates for tap/swipe map 1:1 with image pixels.` },
+          { type: 'text', text: `Screenshot: ${shot.width}x${shot.height}. Coordinates for tap/swipe map 1:1 with image pixels.` },
           {
             type: 'image',
-            data: base64,
+            data: shot.data,
             mimeType: 'image/jpeg'
           }
         ]
@@ -659,25 +689,19 @@ async function executeToolInner(
       await client.ensureScaling(phone_id);
       const native = client.toNative(phone_id, x, y);
       await client.tap(phone_id, native.x, native.y);
-      return {
-        content: [{ type: 'text', text: `Tapped at (${x}, ${y})` }]
-      };
+      return actionResult(client, phone_id, `Tapped at (${x}, ${y})`);
     }
 
     case 'type_text': {
       const { phone_id, text } = args as { phone_id: string; text: string };
       await client.typeText(phone_id, text);
-      return {
-        content: [{ type: 'text', text: `Typed text into active field` }]
-      };
+      return actionResult(client, phone_id, 'Typed text into active field');
     }
 
     case 'press_home': {
       const phoneId = args.phone_id as string;
       await client.pressHome(phoneId);
-      return {
-        content: [{ type: 'text', text: 'Pressed home button' }]
-      };
+      return actionResult(client, phoneId, 'Pressed home button');
     }
 
     case 'swipe': {
@@ -685,9 +709,7 @@ async function executeToolInner(
       await client.ensureScaling(phone_id);
       const native = client.toNative(phone_id, x, y);
       await client.flick(phone_id, native.x, native.y, direction);
-      return {
-        content: [{ type: 'text', text: `Swiped ${direction} at (${x}, ${y})` }]
-      };
+      return actionResult(client, phone_id, `Swiped ${direction} at (${x}, ${y})`);
     }
 
     case 'drag': {
@@ -698,9 +720,7 @@ async function executeToolInner(
       const nFrom = client.toNative(phone_id, from_x, from_y);
       const nTo = client.toNative(phone_id, to_x, to_y);
       await client.drag(phone_id, nFrom.x, nFrom.y, nTo.x, nTo.y);
-      return {
-        content: [{ type: 'text', text: `Dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
-      };
+      return actionResult(client, phone_id, `Dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})`);
     }
 
     case 'hold_and_drag': {
@@ -711,9 +731,7 @@ async function executeToolInner(
       const nFrom = client.toNative(phone_id, from_x, from_y);
       const nTo = client.toNative(phone_id, to_x, to_y);
       await client.holdAndDrag(phone_id, nFrom.x, nFrom.y, nTo.x, nTo.y, hold_duration_ms);
-      return {
-        content: [{ type: 'text', text: `Hold and dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})` }]
-      };
+      return actionResult(client, phone_id, `Hold and dragged from (${from_x}, ${from_y}) to (${to_x}, ${to_y})`);
     }
 
     // case 'pinch': {
@@ -734,9 +752,7 @@ async function executeToolInner(
       await client.ensureScaling(phone_id);
       const native = client.toNative(phone_id, x, y);
       await client.doubleTap(phone_id, native.x, native.y);
-      return {
-        content: [{ type: 'text', text: `Double tapped at (${x}, ${y})` }]
-      };
+      return actionResult(client, phone_id, `Double tapped at (${x}, ${y})`);
     }
 
     case 'long_press': {
@@ -744,9 +760,7 @@ async function executeToolInner(
       await client.ensureScaling(phone_id);
       const native = client.toNative(phone_id, x, y);
       await client.longPress(phone_id, native.x, native.y, duration);
-      return {
-        content: [{ type: 'text', text: `Long pressed at (${x}, ${y}) for ${duration || 1000}ms` }]
-      };
+      return actionResult(client, phone_id, `Long pressed at (${x}, ${y}) for ${duration || 1000}ms`);
     }
 
     case 'lock': {
@@ -760,9 +774,7 @@ async function executeToolInner(
     case 'unlock': {
       const phoneId = args.phone_id as string;
       await client.unlock(phoneId);
-      return {
-        content: [{ type: 'text', text: 'Unlocked the device' }]
-      };
+      return actionResult(client, phoneId, 'Unlocked the device');
     }
 
     // case 'volume_up': {
